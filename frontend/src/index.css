@@ -1,0 +1,78 @@
+@import url('https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@800,900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 17% 7%;
+    --foreground: 210 40% 98%;
+    --card: 220 15% 10%;
+    --card-foreground: 210 40% 98%;
+    --popover: 220 15% 9%;
+    --popover-foreground: 210 40% 98%;
+    --primary: 24 95% 53%;
+    --primary-foreground: 20 40% 6%;
+    --secondary: 218 14% 15%;
+    --secondary-foreground: 210 40% 98%;
+    --muted: 218 14% 15%;
+    --muted-foreground: 215 18% 62%;
+    --accent: 218 14% 18%;
+    --accent-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 218 14% 20%;
+    --input: 218 14% 18%;
+    --ring: 24 95% 53%;
+    --radius: 0.25rem;
+  }
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  margin: 0;
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'IBM Plex Sans', -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: 0.01em;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url('https://images.pexels.com/photos/34874947/pexels-photo-34874947.jpeg');
+  background-size: cover;
+  opacity: 0.025;
+  pointer-events: none;
+  z-index: 0;
+  mix-blend-mode: luminosity;
+}
+
+.font-heading { font-family: 'Cabinet Grotesk', sans-serif; }
+.font-mono, .num { font-family: 'IBM Plex Mono', monospace; font-variant-numeric: tabular-nums; }
+
+::selection { background: hsl(var(--primary)); color: hsl(var(--primary-foreground)); }
+
+/* LED status dots */
+.led { width: 8px; height: 8px; border-radius: 999px; display: inline-block; }
+.led-on { background: #22C55E; box-shadow: 0 0 8px 1px #22C55E; }
+.led-off { background: #EF4444; box-shadow: 0 0 8px 1px #EF4444; }
+.led-sync { background: #EAB308; box-shadow: 0 0 8px 1px #EAB308; animation: pulse 1s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.35} }
+
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: hsl(var(--background)); }
+::-webkit-scrollbar-thumb { background: hsl(var(--border)); border-radius: 0; }
+::-webkit-scrollbar-thumb:hover { background: hsl(var(--primary)); }
+
+@keyframes riseIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.rise { animation: riseIn 0.35s ease-out both; }
+
+.kpi-inset { box-shadow: inset 0 1px 0 rgba(255,255,255,0.05); }

@@ -1,0 +1,102 @@
+{
+  "theme": "dark",
+  "archetype": "THE PERFORMANCE PRO",
+  "typography": {
+    "headings": {
+      "family": "Cabinet Grotesk",
+      "style": "font-black tracking-tight",
+      "rationale": "Gives a heavy-weight, industrial athletic feel suitable for a steel and roofing business. Replaces generic SaaS fonts with something commanding and raw."
+    },
+    "body": {
+      "family": "IBM Plex Sans",
+      "style": "font-normal leading-relaxed tracking-wide",
+      "rationale": "High legibility for dense tables, forms, and analytical text."
+    },
+    "data_numbers": {
+      "family": "IBM Plex Mono",
+      "style": "font-medium tracking-tight",
+      "rationale": "CRITICAL for inventory and financial data (KG, amounts, GST) so decimals and units align perfectly vertically."
+    }
+  },
+  "colors": {
+    "background": "#0F1115",
+    "surface": "#16191E",
+    "border": "#2C313A",
+    "primary": "#F97316",
+    "primary_hover": "#FB923C",
+    "text_main": "#F8FAFC",
+    "text_muted": "#94A3B8",
+    "success": "#22C55E",
+    "danger": "#EF4444",
+    "warning": "#EAB308",
+    "rationale": "Deep forged steel background. High-visibility 'Forge Orange' primary action color. Strict avoidance of SaaS blues and forbidden teals. High contrast ensures readability in warehouse/outdoor environments."
+  },
+  "layouts": {
+    "mobile_first": "Sticky bottom nav on mobile with massive action buttons (+SALE, +PURCHASE) in a 2-column grid. Floating Action Button (FAB) specifically for the camera/barcode scanner.",
+    "dashboard_grid": "High-density 'Bento' grid. grid-cols-1 md:grid-cols-4 gap-4. Every pixel utilized. 'Ask My Business' takes col-span-full as a commanding top banner.",
+    "spacing": "Tactical spacing. Tight within data tables (p-2, p-4) but generous between distinct widget zones (gap-6, gap-8) to prevent visual overload.",
+    "surfaces": "Tactical Minimalism. Flat surfaces with sharp edges (rounded-sm or rounded-none) and 1px solid borders (border-border/60). Inner 1px highlight (box-shadow: inset 0 1px 0 rgba(255,255,255,0.05)). No muddy drop shadows."
+  },
+  "visual_enhancers": {
+    "borders": "Expose the grid. Use border-collapse style layouts for inventory and reports. Subdued borders (border-border/40) for structure, bright solid borders (border-primary) for active states.",
+    "ai_search_box": "The 'ASK MY BUSINESS' box should use the 'Crystal Glass' variant (backdrop-blur-xl bg-black/60 with a subtle border-white/10 and high saturation). This makes it feel like an omnipresent intelligence layer floating above the physical inventory data.",
+    "status_indicators": "Bright, glowing ASCII or 1px dots for ONLINE/OFFLINE/SYNCING. Needs to feel like heavy machinery control panel LEDs."
+  },
+  "components": {
+    "buttons": "Heavy, pill-shaped or sharp rectangular block buttons. Active states should have an aggressive lift (-translate-y-1) and high-contrast text.",
+    "tables": "Shadcn UI tables heavily customized: mono-spaced numbers, dense padding, alternating row subtle backgrounds for scanability.",
+    "cards": "Cardless or raw rectangular blocks. Dashboard KPIs should feel like digital readouts, not floaty paper cards.",
+    "forms": "Shadcn inputs but with deep backgrounds and high-contrast borders on focus (focus:ring-primary focus:border-primary)."
+  },
+  "motion": {
+    "hover": "Instant, sharp color transitions for utility elements. No slow fades. It must feel highly responsive.",
+    "page_transitions": "Slide up with subtle opacity fade.",
+    "ai_search": "When 'Ask My Business' is focused, dim the rest of the dashboard slightly (bg-black/50 overlay) to bring total focus to the natural language interaction."
+  },
+  "accessibility": {
+    "contrast": "Strict adherence to APCA standards. All primary buttons must have high-contrast text (e.g., black text on Forge Orange).",
+    "data_testid": "MANDATORY. Every action button, tab, and KPI card must have a data-testid (e.g., data-testid='add-sale-button', data-testid='inventory-table-row').",
+    "reduced_motion": "Respect prefers-reduced-motion for all transitions."
+  },
+  "image_urls": [
+    {
+      "url": "https://images.unsplash.com/photo-1697698532634-ea59b636ccea",
+      "category": "login_background",
+      "description": "Black and white/moody photo of rolled steel coils. Perfect as a dramatic, dark, heavy-industry background for the PIN login screen. Apply a heavy black/50 overlay."
+    },
+    {
+      "url": "https://images.pexels.com/photos/34874947/pexels-photo-34874947.jpeg",
+      "category": "texture_overlay",
+      "description": "Rusty metal surface texture. Can be used at 2% opacity blended into the background of the app to kill digital flatness and give a tactile 'steel yard' feel."
+    }
+  ],
+  "instructions_to_main_agent": [
+    "Prioritize mobile usability: the user is a trader walking around a steel yard. Actions like '+ SALE', 'SCAN BILL', and 'INVENTORY' must be large, easily tappable with one hand.",
+    "Implement 'ASK MY BUSINESS' as a prominent sticky or fixed search bar at the top of the mobile dashboard, ensuring it is always accessible.",
+    "Do not use generic 'blue' SaaS colors. Stick strictly to the Forge Steel and Orange palette.",
+    "Ensure the camera/scanner buttons look distinct—perhaps using an icon-heavy FAB or high-contrast accent button.",
+    "When displaying inventory units (KG/MT/PCS), use the monospace font and align right for easy visual scanning of quantities.",
+    "Show explicit ONLINE/OFFLINE/SYNCING states in the top header, as warehouse internet connectivity can be spotty.",
+    "All modals (like the editable review form for handwritten bills) must have a sharp, industrial feel with clear 'Approve' or 'Needs Review' flags.",
+    "Never use purely transparent backgrounds on drop-downs or sticky headers; always use a solid or highly-blurred background to ensure data beneath doesn't interfere with legibility.",
+    "Ensure all components and views are implemented via .js files since the project uses JS."
+  ],
+  "UNIVERSAL GUIDELINES FOR MAIN AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Dark colors look good when used independently without gradients. DO NOT use dark colors as gradients.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling.",
+    "Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur) where instructed.",
+    "You MUST NOT apply universal transition. Eg: transition: all. Always add transitions for specific interactive elements.",
+    "You MUST NOT center align the app container, ie do not add .App { text-align: center; } in the css file.",
+    "Always use modern button styles like sharp or pill-shaped blocks with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, and entrance animations.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "Main agent relies on these image URLs. Missing categories = main agent will use placeholder text which is FORBIDDEN.",
+    "Prioritize using pre-existing components from src/components/ui when applicable.",
+    "Use sonner for toasts. Sonner component are located in /app/src/components/ui/sonner.js or .jsx equivalent.",
+    "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "summary": "Full backend + frontend testing of SteelBiz. Backend: 28/28 pytest tests pass covering auth, dashboard, CRUD (customers/suppliers/products/coils), purchase→inventory increase, sale→inventory decrease + profit calc + PDF invoice, payments reducing outstanding, all 6 report kinds, all 5 CSV/JSON exports, and AI Ask with follow-up. Frontend: PIN login (wrong+correct), dashboard KPIs (all 7) + range filters, create Customer/Supplier/Product via UI, create Sale (Ravi Traders/GI Pipe) and Purchase (JSW/GI Pipe), Ask My Business Q&A with maintained follow-up context (correctly identified Ravi Traders as buyer of PPGL Roofing Sheet with real numbers from DB). Discovered and fixed a critical React bug: 6 pages used `useEffect(load, [])` where load returns a Promise, causing a Red-screen `TypeError: destroy is not a function` overlay on unmount that blocked Customers, Suppliers, Payments, Purchases and Sales pages during navigation. Fixed by wrapping in arrow function `useEffect(() => { load(); }, [])` in all 6 pages.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {"component": "Customers/Suppliers/Payments/Purchases/Sales/Inventory pages", "issue": "useEffect(load, []) passed a Promise-returning function to React causing 'TypeError: destroy is not a function' red overlay on navigation/unmount, blocking all interactions with these pages", "selector": "n/a", "priority": "CRITICAL (FIXED by testing agent)"}
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Verify the useEffect fix in 6 pages is acceptable (Customers.js, Suppliers.js, Inventory.js, Payments.js, Purchases.js, Sales.js)",
+    "Consider adopting a proper React data-fetching pattern (SWR/react-query) or an explicit `useEffect(() => { let ok=true; api.get(...).then(r => ok && setX(r.data)); return () => { ok=false; }; }, [])` for cancellation safety."
+  ],
+  "critical_code_review_comments": [
+    "server.py is 1100+ lines: consider splitting into routers (auth, customers, suppliers, products, sales, purchases, analytics, reports).",
+    "customer_outstanding double-counts payments: it adds `sum(payments.amount)` AND `sum(sales.amount_paid)` — if a shopkeeper records amount_paid inside the sale AND then creates a Payment record for the same money, outstanding will be understated. Suggest documenting which source of truth to use.",
+    "apply_sale_to_inventory allows negative stock without validation (new_qty = old_qty - qty is written even if negative). Consider guarding.",
+    "apply_sale_to_inventory: unbound local `cost` when product not found (`it['_cost'] = cost if prod else 0` — `cost` may reference variable from previous iteration). Not caught in tests because seed data has all products.",
+    "Login: `pin.length >= 8` cap but backend requires >=4. Fine, but there is no rate-limit/lockout on PIN attempts — brute-forceable in 10^4 = 10000 tries.",
+    "CORS default is '*' with allow_credentials=True — invalid per spec; browsers will reject credentialed requests. In this deployment REACT_APP_BACKEND_URL matches host so OK, but the config is fragile.",
+    "Frontend uses localStorage token (JWT) — vulnerable to XSS token theft. httpOnly cookie recommended.",
+    "Scan endpoints upload to object storage without try/finally cleanup on failure of storage; low priority."
+  ],
+  "updated_files": [
+    "/app/frontend/src/pages/Customers.js",
+    "/app/frontend/src/pages/Suppliers.js",
+    "/app/frontend/src/pages/Inventory.js",
+    "/app/frontend/src/pages/Payments.js",
+    "/app/frontend/src/pages/Purchases.js",
+    "/app/frontend/src/pages/Sales.js",
+    "/app/backend/tests/backend_test.py (new)"
+  ],
+  "success_rate": {"backend": "100% (28/28)", "frontend": "100% after useEffect fix (all critical flows: login, dashboard, customer/supplier/product create, sale, purchase, ask+follow-up)"},
+  "test_credentials": "PIN: 112233 (from backend/.env ADMIN_PIN)",
+  "seed_data_creation": "Backend test flow creates TEST_ prefixed customer/supplier/product/purchase/sale and cleans them up. UI test left a few TEST_UI_* records (customer/supplier/product) plus 1 sale on Ravi Traders (GI Pipe x2 @100) and 1 purchase on JSW (GI Pipe x10 @80).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend fully green. Frontend useEffect(load, []) pattern was a bug across 6 pages — fixed. If retesting, log in with PIN 112233 and note that seed data plus test-created rows exist. Product 'TEST_Flow' was created by backend test with 90KG stock at cost 100. AI Ask endpoint takes ~5-10s per call.",
+  "rca of the issue": "Root cause: `useEffect(load, [])` where `const load = () => api.get(...).then(...)` — the arrow expression returns the Promise from api.get().then(). React interprets the return value as a cleanup function. On unmount (route navigation) React calls `destroy()` on that Promise, throwing `TypeError: destroy is not a function` and triggering the red DEV overlay that visually blocked buttons. Repro: log in, click Customers in the nav → red overlay covers page; buttons unreachable. Mitigation: wrap in a block-returning arrow so the effect returns undefined: `useEffect(() => { load(); }, [])`. Applied to Customers.js, Suppliers.js, Inventory.js, Payments.js, Purchases.js, Sales.js."
+}
