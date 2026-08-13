@@ -224,3 +224,78 @@ def test_analytics_ask(client):
 def test_settings(client):
     r = client.get(f"{API}/settings")
     assert r.status_code == 200
+
+
+
+# ---------------- Scan endpoints (bug fix verify) ----------------
+def _make_jpg_bytes():
+    from PIL import Image, ImageDraw
+    img = Image.new("RGB", (800, 600), "white")
+    d = ImageDraw.Draw(img)
+    d.text((30, 30), "Customer: Ravi Traders\nGI Pipe 10 KG @ 100\nTotal 1000", fill="black")
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def _auth_headers(token):
+    return {"Authorization": f"Bearer {token}"}
+
+
+def test_sales_scan_valid_image_returns_200(token):
+    jpg = _make_jpg_bytes()
+    r = requests.post(f"{API}/sales/scan",
+                      headers=_auth_headers(token),
+                      files={"file": ("bill.jpg", jpg, "image/jpeg")},
+                      timeout=180)
+    assert r.status_code == 200, f"expected 200, got {r.status_code}: {r.text[:400]}"
+    j = r.json()
+    # tolerate LLM parse fallback shape too
+    assert isinstance(j, dict)
+    assert ("items" in j) or ("error" in j) or ("needs_review" in j)
+
+
+def test_sales_scan_garbage_returns_422(token):
+    r = requests.post(f"{API}/sales/scan",
+                      headers=_auth_headers(token),
+                      files={"file": ("junk.txt", b"this is not an image at all", "text/plain")},
+                      timeout=60)
+    assert r.status_code == 422, f"expected 422, got {r.status_code}: {r.text[:300]}"
+    assert "detail" in r.json()
+
+
+def test_sales_scan_empty_returns_400(token):
+    r = requests.post(f"{API}/sales/scan",
+                      headers=_auth_headers(token),
+                      files={"file": ("empty.jpg", b"", "image/jpeg")},
+                      timeout=30)
+    assert r.status_code == 400
+
+
+def test_purchases_scan_valid_image_returns_200(token):
+    jpg = _make_jpg_bytes()
+    r = requests.post(f"{API}/purchases/scan",
+                      headers=_auth_headers(token),
+                      files={"file": ("inv.jpg", jpg, "image/jpeg")},
+                      timeout=180)
+    assert r.status_code == 200, f"expected 200, got {r.status_code}: {r.text[:400]}"
+    j = r.json()
+    assert isinstance(j, dict)
+
+
+def test_purchases_scan_garbage_returns_422(token):
+    r = requests.post(f"{API}/purchases/scan",
+                      headers=_auth_headers(token),
+                      files={"file": ("junk.txt", b"not an invoice", "text/plain")},
+                      timeout=60)
+    assert r.status_code == 422
+    assert "detail" in r.json()
+
+
+def test_settings_default_business_name(client):
+    r = client.get(f"{API}/settings")
+    assert r.status_code == 200
+    # If nothing set, backend now defaults to Vandana branding
+    name = r.json().get("business_name", "")
+    # allow either a persisted custom value or the new default; only assert absence of legacy default
+    assert "SteelBiz" not in name

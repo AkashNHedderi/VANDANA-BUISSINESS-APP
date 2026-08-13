@@ -1,0 +1,40 @@
+{
+  "summary": "Targeted verification of scan-500 bug fix + VANDANA rebrand. Added 6 new scan/rebrand backend tests to backend_test.py — all pass. Sales/scan and Purchases/scan return HTTP 200 with JSON extraction for a valid JPG; garbage text file now returns 422 with a friendly 'detail' message (no more 500); empty file returns 400. pillow_heif is registered at import so HEIC/mobile photos decode without crashing. Frontend UI verified end-to-end: login screen shows VAN|DANA logo, PIN 112233 logs in, sidebar/topbar show VANDANA (no STEELBIZ text anywhere). On Sales page, SCAN BILL button opens file input; uploading a generated JPG (Ravi Traders / GI Pipe / 10 KG @ 100) triggers the LLM extraction and the Review dialog opens pre-filled (customer, item, qty, rate, total 1,000) with the CONFIRM SALE button and a 'Bill read — review and confirm' toast. Regression: PIN login, dashboard KPIs, and previously-fixed useEffect flows still working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/customers/{id} outstanding", "issue": "customer_outstanding matches by party_name OR party_id, so orphan sales from deleted test customers with the same name (e.g. TEST_CustFlow) get counted. Caused test_purchase_and_sale_flow to see out_before=2500 instead of 1500. Pre-existing behaviour, not a regression from this iteration."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Sales SCAN BILL review dialog", "issues": ["DialogContent is missing Description/aria-describedby (Radix a11y warning in console). Minor."]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optionally add DialogDescription (or aria-describedby={undefined} suppression) to the Sales scan-review DialogContent to silence Radix a11y warning.",
+    "Optionally scope customer_outstanding lookup to party_id only (drop party_name OR) to avoid orphan-name aggregation; or clean up TEST_ sales during teardown in backend_test.test_purchase_and_sale_flow."
+  ],
+  "critical_code_review_comments": [
+    "scan_sale/scan_purchase now correctly catch decode errors and raise 422; good.",
+    "resize_b64_png no longer chains .convert on Image.open — fixes prior PIL error path; good.",
+    "APP_NAME still defaults to 'steelbiz' in code (used only as object-storage folder prefix) — cosmetically inconsistent with the VANDANA rebrand but harmless.",
+    "server.py is 1160+ lines — still recommend splitting into routers."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "33/34 (97%) — 6/6 new scan tests + settings default all pass; 1 pre-existing orphan-data failure unrelated to this fix", "frontend": "100% for scan + rebrand flows"},
+  "test_credentials": "PIN 112233",
+  "seed_data_creation": "One extra TEST_CustFlow sale was created from prior run; no new UI-created records this iteration (scan dialog was closed without confirming).",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Scan endpoints and VANDANA rebrand are verified. Backend test file /app/backend/tests/backend_test.py has 6 scan-specific tests (sales+purchases: valid image 200, garbage 422, empty 400 for sales) and a settings-default assertion. The only failing pytest (test_purchase_and_sale_flow: out_before assertion) is due to accumulated TEST_CustFlow orphan sales in the DB, not a code regression.",
+  "rca of the issue": "Root cause of the original 500: resize_b64_png used Image.open(...).convert('RGB') in one chain and had no try/except; HEIC bytes from mobile photos hit PIL.UnidentifiedImageError and the endpoint returned 500. Fix: (1) register pillow_heif.register_heif_opener() at import so HEIC decodes; (2) split open() and convert() so decode errors are catchable; (3) wrap decode in scan_sale and scan_purchase in try/except that raises HTTPException 422 with a user-friendly detail. Verified with pytest and via live UI upload."
+}

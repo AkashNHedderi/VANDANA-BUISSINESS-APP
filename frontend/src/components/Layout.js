@@ -67,7 +67,7 @@ export default function Layout() {
       <aside className="hidden lg:flex w-64 flex-col border-r border-border bg-card/40 sticky top-0 h-screen">
         <div className="px-6 py-6 border-b border-border">
           <div className="font-heading text-2xl font-black tracking-tight text-foreground">
-            STEEL<span className="text-primary">BIZ</span>
+            VAN<span className="text-primary">DANA</span>
           </div>
           <div className="text-[11px] text-muted-foreground font-mono tracking-widest mt-1">PRIVATE LEDGER</div>
         </div>
@@ -108,7 +108,7 @@ export default function Layout() {
               <Menu size={22} />
             </button>
             <div className="lg:hidden font-heading text-lg font-black">
-              STEEL<span className="text-primary">BIZ</span>
+              VAN<span className="text-primary">DANA</span>
             </div>
           </div>
           <div className="flex items-center gap-4">
@@ -123,7 +123,7 @@ export default function Layout() {
             <div className="absolute inset-0 bg-black/70" onClick={() => setOpen(false)} />
             <div className="absolute left-0 top-0 h-full w-72 bg-card border-r border-border flex flex-col">
               <div className="flex items-center justify-between px-5 py-5 border-b border-border">
-                <span className="font-heading text-xl font-black">STEEL<span className="text-primary">BIZ</span></span>
+                <span className="font-heading text-xl font-black">VAN<span className="text-primary">DANA</span></span>
                 <button onClick={() => setOpen(false)}><X size={22} /></button>
               </div>
               <nav className="flex-1 overflow-y-auto py-2">

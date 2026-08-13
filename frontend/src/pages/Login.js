@@ -40,7 +40,7 @@ export default function Login() {
       <div className="relative w-full max-w-sm rise">
         <div className="text-center mb-8">
           <div className="font-heading text-4xl font-black tracking-tight">
-            STEEL<span className="text-primary">BIZ</span>
+            VAN<span className="text-primary">DANA</span>
           </div>
           <p className="text-muted-foreground text-sm mt-2 font-mono tracking-widest">ENTER PIN TO UNLOCK</p>
         </div>
