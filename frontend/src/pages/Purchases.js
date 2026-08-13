@@ -17,6 +17,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
   const [form, setForm] = useState({ supplier_id: "", supplier_name: "", invoice_number: "", date: fmtDate(new Date().toISOString()) });
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
+  const isEdit = !!initial?.id;
 
   useEffect(() => {
     if (open) {
@@ -37,9 +38,10 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
     if (!form.supplier_name.trim()) return toast.error("Supplier name required");
     setSaving(true);
     try {
-      await api.post("/purchases", { ...form, items });
+      if (isEdit) await api.put(`/purchases/${initial.id}`, { ...form, items });
+      else await api.post("/purchases", { ...form, items });
       markSaved();
-      toast.success("Purchase saved · inventory increased");
+      toast.success(isEdit ? "Purchase updated · inventory recalculated" : "Purchase saved · inventory increased");
       onSaved();
       onClose();
     } catch (e) {
@@ -53,7 +55,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-heading">
-          {initial?.source === "scan" ? "REVIEW SCANNED PURCHASE" : "NEW PURCHASE"}
+          {isEdit ? `EDIT PURCHASE · ${initial.invoice_number || ""}` : initial?.source === "scan" ? "REVIEW SCANNED PURCHASE" : "NEW PURCHASE"}
         </DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -67,7 +69,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
                   const s = suppliers.find((x) => x.name === e.target.value);
                   setForm({ ...form, supplier_name: e.target.value, supplier_id: s?.id || "" });
                 }}
-                placeholder="Supplier name"
+                placeholder="Type name — new suppliers are created automatically"
               />
               <datalist id="supp-list">{suppliers.map((s) => <option key={s.id} value={s.name} />)}</datalist>
             </div>
@@ -87,7 +89,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={saving} data-testid="confirm-purchase">
             {saving ? <Loader2 size={16} className="animate-spin mr-1" /> : <CheckCircle2 size={16} className="mr-1" />}
-            CONFIRM PURCHASE
+            {isEdit ? "SAVE CHANGES" : "CONFIRM PURCHASE"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -161,7 +163,7 @@ export default function Purchases() {
           <tbody className="divide-y divide-border" data-testid="purchases-table">
             {purchases.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No purchases yet.</td></tr>}
             {purchases.map((p) => (
-              <tr key={p.id} className="hover:bg-accent/50">
+              <tr key={p.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => { setInitial(p); setDlgOpen(true); }} data-testid={`purchase-row-${p.id}`}>
                 <td className="p-3 font-mono">{fmtDate(p.date)}</td>
                 <td className="p-3 font-mono">{p.invoice_number}</td>
                 <td className="p-3">{p.supplier_name}</td>

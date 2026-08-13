@@ -1,5 +1,6 @@
 import os
 import io
+import re
 import json
 import uuid
 import base64
@@ -339,6 +340,48 @@ async def apply_sale_to_inventory(items: List[dict]):
     return total_cost
 
 
+async def reverse_sale_inventory(items: List[dict]):
+    for it in items:
+        prod = await find_product(it["product"], it.get("specification", ""))
+        if prod:
+            await db.products.update_one({"id": prod["id"]}, {"$set": {
+                "quantity": float(prod.get("quantity") or 0) + float(it.get("quantity") or 0),
+                "last_movement": now_iso()}})
+
+
+async def reverse_purchase_inventory(items: List[dict]):
+    for it in items:
+        prod = await find_product(it["product"], it.get("specification", ""))
+        if prod:
+            await db.products.update_one({"id": prod["id"]}, {"$set": {
+                "quantity": float(prod.get("quantity") or 0) - float(it.get("quantity") or 0),
+                "last_movement": now_iso()}})
+
+
+async def ensure_customer(name: str) -> str:
+    name = (name or "").strip()
+    if not name:
+        return ""
+    existing = await db.customers.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+    if existing:
+        return existing["id"]
+    c = Customer(name=name)
+    await db.customers.insert_one(c.model_dump())
+    return c.id
+
+
+async def ensure_supplier(name: str) -> str:
+    name = (name or "").strip()
+    if not name:
+        return ""
+    existing = await db.suppliers.find_one({"name": {"$regex": f"^{re.escape(name)}$", "$options": "i"}})
+    if existing:
+        return existing["id"]
+    s = Supplier(name=name)
+    await db.suppliers.insert_one(s.model_dump())
+    return s.id
+
+
 # ---------------------------------------------------------------------------
 # Auth routes
 # ---------------------------------------------------------------------------
@@ -578,8 +621,29 @@ async def create_purchase(p: Purchase, user=Depends(get_current_user)):
         if not it.get("total"):
             it["total"] = compute_line_total(it)
     d["total"] = round(sum(float(it.get("total") or 0) for it in items) + float(d.get("freight") or 0), 2)
+    d["supplier_id"] = await ensure_supplier(d.get("supplier_name", "")) or d.get("supplier_id", "")
     await apply_purchase_to_inventory(items)
     await db.purchases.insert_one(d)
+    return clean(d)
+
+
+@api.put("/purchases/{pid}")
+async def update_purchase(pid: str, p: Purchase, user=Depends(get_current_user)):
+    old = clean(await db.purchases.find_one({"id": pid}))
+    if not old:
+        raise HTTPException(404, "Not found")
+    await reverse_purchase_inventory(old.get("items", []))
+    d = p.model_dump()
+    d["id"] = pid
+    d["created_at"] = old.get("created_at", now_iso())
+    items = d["items"]
+    for it in items:
+        if not it.get("total"):
+            it["total"] = compute_line_total(it)
+    d["total"] = round(sum(float(it.get("total") or 0) for it in items) + float(d.get("freight") or 0), 2)
+    d["supplier_id"] = await ensure_supplier(d.get("supplier_name", "")) or d.get("supplier_id", "")
+    await apply_purchase_to_inventory(items)
+    await db.purchases.update_one({"id": pid}, {"$set": d})
     return clean(d)
 
 
@@ -597,6 +661,7 @@ async def create_sale(s: Sale, user=Depends(get_current_user)):
         if not it.get("total"):
             it["total"] = compute_line_total(it)
     d["total"] = round(sum(float(it.get("total") or 0) for it in items), 2)
+    d["customer_id"] = await ensure_customer(d.get("customer_name", "")) or d.get("customer_id", "")
     cost = await apply_sale_to_inventory(items)
     for it in items:
         it.pop("_cost", None)
@@ -606,6 +671,32 @@ async def create_sale(s: Sale, user=Depends(get_current_user)):
         cnt = await db.sales.count_documents({})
         d["invoice_number"] = f"INV-{1001 + cnt}"
     await db.sales.insert_one(d)
+    return clean(d)
+
+
+@api.put("/sales/{sid}")
+async def update_sale(sid: str, s: Sale, user=Depends(get_current_user)):
+    old = clean(await db.sales.find_one({"id": sid}))
+    if not old:
+        raise HTTPException(404, "Not found")
+    await reverse_sale_inventory(old.get("items", []))
+    d = s.model_dump()
+    d["id"] = sid
+    d["created_at"] = old.get("created_at", now_iso())
+    items = d["items"]
+    for it in items:
+        if not it.get("total"):
+            it["total"] = compute_line_total(it)
+    d["total"] = round(sum(float(it.get("total") or 0) for it in items), 2)
+    d["customer_id"] = await ensure_customer(d.get("customer_name", "")) or d.get("customer_id", "")
+    cost = await apply_sale_to_inventory(items)
+    for it in items:
+        it.pop("_cost", None)
+    d["cost"] = round(cost, 2)
+    d["profit"] = round(d["total"] - cost, 2)
+    if not d.get("invoice_number"):
+        d["invoice_number"] = old.get("invoice_number", "")
+    await db.sales.update_one({"id": sid}, {"$set": d})
     return clean(d)
 
 

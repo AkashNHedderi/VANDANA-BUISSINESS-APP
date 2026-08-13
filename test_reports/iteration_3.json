@@ -1,0 +1,36 @@
+{
+  "summary": "Verified the 4 new enhancements end-to-end (backend + UI). (1) Sales line-item product is a Select dropdown (data-testid item-product-0) listing ONLY inventory items in 'name · spec (qty unit)' form; free-text entry not possible in Sales. (2) Typing 'UI New Customer 1' in a new sale auto-creates the customer — confirmed in Customers page. (3) Clicking a sale row opens EDIT SALE dialog pre-filled with customer/date/items and SAVE CHANGES button (PUT /api/sales/{id}); backend correctly reverses old inventory then re-applies (verified via pytest: qty 100 -> sale 10 -> edit to 25 => inventory 75; profit recalculated from 500 to 1250). (4) NEW PURCHASE with brand-new supplier 'UI New Supplier 1' saved and supplier appeared in Suppliers page; edit purchase pre-fills and PUT /api/purchases/{id} reverses+reapplies inventory (verified: qty 20 -> edit to 50 => inventory 50). Invoice-download button on sale row uses stopPropagation — no edit dialog opens, PDF downloads. Regression: PIN 112233 login, dashboard nav and KPIs load, sidebar 'VANDANA / Private Ledger' branding intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/customers/{id} outstanding", "issue": "Pre-existing: matches by party_name OR party_id, so orphan TEST_CustFlow sales inflate outstanding. Same cause makes test_purchase_and_sale_flow fail on already-polluted DB (37 tests total, 36 pass, 1 fails due to orphan data not code)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Optional cleanup: purge TEST_CustFlow / TEST_Flow orphan records from Mongo, or scope customer_outstanding lookup to party_id only, so test_purchase_and_sale_flow becomes stable."
+  ],
+  "critical_code_review_comments": [
+    "ensure_customer / ensure_supplier use case-insensitive regex on name — good; correctly returns existing id and prevents duplicates.",
+    "update_sale/update_purchase call reverse_*_inventory on the OLD items snapshot then apply_*_to_inventory on the NEW items — semantics correct. However, if the product record has since been deleted, reverse_* silently no-ops (safe).",
+    "apply_sale_to_inventory allows negative stock (e.g. HP SCREW shows -1000 PCS in dropdown). Consider a warning or block when qty > stock.",
+    "server.py still 1257 lines — recommend splitting into routers (sales, purchases, inventory, analytics)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py"
+  ],
+  "success_rate": {"backend": "36/37 (97%) — all 3 new-feature tests + existing suite pass; single failure is pre-existing orphan data issue", "frontend": "100% of the 4 targeted flows + regression"},
+  "test_credentials": "PIN 112233",
+  "seed_data_creation": "Created UI-side: sale for 'UI New Customer 1' (GI Pipe x2 @100, then edited to qty 5) and purchase for 'UI New Supplier 1' with 'TEST UI Purchase Prod' x5 @40. Backend pytest cleans up its own TEST_* fixtures.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "All 4 requested enhancements are live and green. New backend tests: test_sale_auto_creates_customer_and_edit_reverses_inventory, test_purchase_auto_creates_supplier_and_edit_reverses_inventory, test_ensure_customer_case_insensitive. The only failing pytest is test_purchase_and_sale_flow due to orphan TEST_Flow / TEST_CustFlow data left from earlier iterations; not a regression from this iteration's code changes."
+}

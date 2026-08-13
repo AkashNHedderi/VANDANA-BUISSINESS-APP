@@ -16,9 +16,19 @@ export function lineTotal(it) {
   return Math.round((withGst + (Number(it.freight) || 0)) * 100) / 100;
 }
 
-export default function LineItemsEditor({ items, setItems, mode = "sale" }) {
+export default function LineItemsEditor({ items, setItems, mode = "sale", products = [] }) {
   const update = (i, key, val) => {
     const next = items.map((it, idx) => (idx === i ? { ...it, [key]: val } : it));
+    next[i].total = lineTotal(next[i]);
+    setItems(next);
+  };
+  const selectProduct = (i, name) => {
+    const p = products.find((x) => x.name === name);
+    const next = items.map((it, idx) =>
+      idx === i
+        ? { ...it, product: name, specification: p?.specification || it.specification, thickness: p?.thickness || it.thickness, unit: p?.unit || it.unit }
+        : it
+    );
     next[i].total = lineTotal(next[i]);
     setItems(next);
   };
@@ -27,6 +37,11 @@ export default function LineItemsEditor({ items, setItems, mode = "sale" }) {
 
   return (
     <div className="space-y-3" data-testid="line-items">
+      {mode === "sale" && products.length === 0 && (
+        <div className="text-xs text-warning font-mono border border-warning/40 rounded-sm p-2">
+          No products in inventory yet. Add stock in Inventory (or via a Purchase) before creating a sale.
+        </div>
+      )}
       {items.map((it, i) => {
         const nr = it.needs_review || [];
         return (
@@ -37,13 +52,30 @@ export default function LineItemsEditor({ items, setItems, mode = "sale" }) {
               </div>
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-              <Input
-                data-testid={`item-product-${i}`}
-                placeholder="Product"
-                value={it.product}
-                onChange={(e) => update(i, "product", e.target.value)}
-                className="col-span-2 md:col-span-2"
-              />
+              {mode === "sale" ? (
+                <div className="col-span-2 md:col-span-2">
+                  <Select value={it.product || undefined} onValueChange={(v) => selectProduct(i, v)}>
+                    <SelectTrigger data-testid={`item-product-${i}`}>
+                      <SelectValue placeholder="Select product from stock" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {products.map((p) => (
+                        <SelectItem key={p.id} value={p.name}>
+                          {p.name}{p.specification ? ` · ${p.specification}` : ""} ({p.quantity} {p.unit})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <Input
+                  data-testid={`item-product-${i}`}
+                  placeholder="Product"
+                  value={it.product}
+                  onChange={(e) => update(i, "product", e.target.value)}
+                  className="col-span-2 md:col-span-2"
+                />
+              )}
               <Input placeholder="Specification" value={it.specification} onChange={(e) => update(i, "specification", e.target.value)} />
               <Input placeholder="Thickness" value={it.thickness} onChange={(e) => update(i, "thickness", e.target.value)} />
             </div>

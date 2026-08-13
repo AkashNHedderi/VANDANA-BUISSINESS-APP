@@ -16,10 +16,11 @@ import {
 import { Plus, Camera, Download, Loader2, CheckCircle2, FileText } from "lucide-react";
 import { toast } from "sonner";
 
-function SaleDialog({ open, onClose, onSaved, initial, customers }) {
+function SaleDialog({ open, onClose, onSaved, initial, customers, products }) {
   const [form, setForm] = useState({ customer_id: "", customer_name: "", date: fmtDate(new Date().toISOString()) });
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
+  const isEdit = !!initial?.id;
 
   useEffect(() => {
     if (open) {
@@ -39,9 +40,10 @@ function SaleDialog({ open, onClose, onSaved, initial, customers }) {
     if (!form.customer_name.trim()) return toast.error("Customer name required");
     setSaving(true);
     try {
-      await api.post("/sales", { ...form, items });
+      if (isEdit) await api.put(`/sales/${initial.id}`, { ...form, invoice_number: initial.invoice_number, items });
+      else await api.post("/sales", { ...form, items });
       markSaved();
-      toast.success("Sale saved · inventory updated · profit calculated");
+      toast.success(isEdit ? "Sale updated · inventory & profit recalculated" : "Sale saved · inventory updated · profit calculated");
       onSaved();
       onClose();
     } catch (e) {
@@ -55,7 +57,7 @@ function SaleDialog({ open, onClose, onSaved, initial, customers }) {
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle className="font-heading">
-          {initial?.source === "scan" ? "REVIEW SCANNED SALE" : "NEW SALE"}
+          {isEdit ? `EDIT SALE · ${initial.invoice_number || ""}` : initial?.source === "scan" ? "REVIEW SCANNED SALE" : "NEW SALE"}
         </DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -69,7 +71,7 @@ function SaleDialog({ open, onClose, onSaved, initial, customers }) {
                   const c = customers.find((x) => x.name === e.target.value);
                   setForm({ ...form, customer_name: e.target.value, customer_id: c?.id || "" });
                 }}
-                placeholder="Customer name"
+                placeholder="Type name — new customers are created automatically"
               />
               <datalist id="cust-list">
                 {customers.map((c) => <option key={c.id} value={c.name} />)}
@@ -80,14 +82,14 @@ function SaleDialog({ open, onClose, onSaved, initial, customers }) {
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="font-mono" data-testid="sale-date" />
             </div>
           </div>
-          <LineItemsEditor items={items} setItems={setItems} mode="sale" />
+          <LineItemsEditor items={items} setItems={setItems} mode="sale" products={products} />
           <div className="text-right font-mono text-xl text-primary" data-testid="sale-total">TOTAL: {fmtMoney(total)}</div>
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button onClick={save} disabled={saving} data-testid="confirm-sale">
             {saving ? <Loader2 size={16} className="animate-spin mr-1" /> : <CheckCircle2 size={16} className="mr-1" />}
-            CONFIRM SALE
+            {isEdit ? "SAVE CHANGES" : "CONFIRM SALE"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -98,6 +100,7 @@ function SaleDialog({ open, onClose, onSaved, initial, customers }) {
 export default function Sales() {
   const [sales, setSales] = useState([]);
   const [customers, setCustomers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [dlgOpen, setDlgOpen] = useState(false);
   const [initial, setInitial] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -107,6 +110,7 @@ export default function Sales() {
   const load = () => {
     api.get("/sales").then((r) => setSales(r.data));
     api.get("/customers").then((r) => setCustomers(r.data));
+    api.get("/products").then((r) => setProducts(r.data));
   };
   useEffect(() => { load(); }, []);
 
@@ -174,14 +178,14 @@ export default function Sales() {
           <tbody className="divide-y divide-border" data-testid="sales-table">
             {sales.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No sales yet.</td></tr>}
             {sales.map((s) => (
-              <tr key={s.id} className="hover:bg-accent/50">
+              <tr key={s.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => { setInitial(s); setDlgOpen(true); }} data-testid={`sale-row-${s.id}`}>
                 <td className="p-3 font-mono">{fmtDate(s.date)}</td>
                 <td className="p-3 font-mono">{s.invoice_number}</td>
                 <td className="p-3">{s.customer_name}</td>
                 <td className="p-3 text-right font-mono">{fmtMoney(s.total)}</td>
                 <td className="p-3 text-right font-mono text-success">{fmtMoney(s.profit)}</td>
                 <td className="p-3 text-right">
-                  <button onClick={() => downloadInvoice(s)} className="text-primary hover:text-primary/80" data-testid={`invoice-${s.id}`} title="Download invoice">
+                  <button onClick={(e) => { e.stopPropagation(); downloadInvoice(s); }} className="text-primary hover:text-primary/80" data-testid={`invoice-${s.id}`} title="Download invoice">
                     <Download size={16} />
                   </button>
                 </td>
@@ -191,7 +195,7 @@ export default function Sales() {
         </table>
       </div>
 
-      <SaleDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} customers={customers} />
+      <SaleDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} customers={customers} products={products} />
     </div>
   );
 }

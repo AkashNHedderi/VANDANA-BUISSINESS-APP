@@ -299,3 +299,125 @@ def test_settings_default_business_name(client):
     name = r.json().get("business_name", "")
     # allow either a persisted custom value or the new default; only assert absence of legacy default
     assert "SteelBiz" not in name
+
+
+# ---------------- New enhancements: auto-create + edit reverse ----------------
+def _find_product_id_by_name(client, name):
+    prods = client.get(f"{API}/products").json()
+    for p in prods:
+        if p["name"] == name:
+            return p
+    return None
+
+
+def test_sale_auto_creates_customer_and_edit_reverses_inventory(client):
+    # setup product with known qty
+    prod = client.post(f"{API}/products", json={"name": "TEST_EditProd", "unit": "KG",
+                                                "quantity": 100, "avg_cost": 50}).json()
+    pid = prod["id"]
+    new_cust_name = "TEST_AutoCustUI"
+    # ensure absent
+    for c in client.get(f"{API}/customers").json():
+        if c["name"].lower() == new_cust_name.lower():
+            client.delete(f"{API}/customers/{c['id']}")
+
+    # create sale with brand-new customer name (no customer_id)
+    sale = {"customer_name": new_cust_name,
+            "items": [{"product": "TEST_EditProd", "quantity": 10, "unit": "KG", "rate": 100}]}
+    r = client.post(f"{API}/sales", json=sale)
+    assert r.status_code == 200, r.text
+    sd = r.json()
+    sid = sd["id"]
+    assert sd["total"] == 1000
+    assert sd["profit"] == 500  # 1000 - (10 * 50)
+
+    # customer now exists
+    custs = client.get(f"{API}/customers").json()
+    match = [c for c in custs if c["name"].lower() == new_cust_name.lower()]
+    assert match, "auto-create customer failed"
+    cust_id = match[0]["id"]
+
+    # inventory decreased 100 -> 90
+    p2 = _find_product_id_by_name(client, "TEST_EditProd")
+    assert p2["quantity"] == 90
+
+    # edit the sale: change qty from 10 to 25 -> inventory should be 100-25=75; total=2500; profit=2500-1250=1250
+    upd = {"customer_name": new_cust_name, "customer_id": cust_id,
+           "items": [{"product": "TEST_EditProd", "quantity": 25, "unit": "KG", "rate": 100}]}
+    r = client.put(f"{API}/sales/{sid}", json=upd)
+    assert r.status_code == 200, r.text
+    sd2 = r.json()
+    assert sd2["total"] == 2500
+    assert sd2["profit"] == 1250
+    p3 = _find_product_id_by_name(client, "TEST_EditProd")
+    assert p3["quantity"] == 75, f"expected 75 after edit, got {p3['quantity']}"
+
+    # cleanup
+    client.delete(f"{API}/sales/{sid}") if False else None  # no delete endpoint required
+    client.delete(f"{API}/customers/{cust_id}")
+    client.delete(f"{API}/products/{pid}")
+
+
+def test_purchase_auto_creates_supplier_and_edit_reverses_inventory(client):
+    new_sup_name = "TEST_AutoSupUI"
+    for s in client.get(f"{API}/suppliers").json():
+        if s["name"].lower() == new_sup_name.lower():
+            client.delete(f"{API}/suppliers/{s['id']}")
+
+    # brand-new product name (free text allowed on purchase)
+    prod_name = "TEST_NewPurchProd"
+    # remove if pre-existing
+    for p in client.get(f"{API}/products").json():
+        if p["name"] == prod_name:
+            client.delete(f"{API}/products/{p['id']}")
+
+    purchase = {"supplier_name": new_sup_name,
+                "items": [{"product": prod_name, "quantity": 20, "unit": "KG", "rate": 60}]}
+    r = client.post(f"{API}/purchases", json=purchase)
+    assert r.status_code == 200, r.text
+    pd = r.json()
+    pid_purchase = pd["id"]
+    assert pd["total"] == 20 * 60
+
+    # supplier auto-created
+    sups = client.get(f"{API}/suppliers").json()
+    match = [s for s in sups if s["name"].lower() == new_sup_name.lower()]
+    assert match, "supplier auto-create failed"
+    sup_id = match[0]["id"]
+
+    # product now exists with qty 20
+    p_new = _find_product_id_by_name(client, prod_name)
+    assert p_new is not None
+    assert p_new["quantity"] == 20
+
+    # edit purchase: change qty to 50; inventory should reverse 20 then add 50 -> 50
+    upd = {"supplier_name": new_sup_name, "supplier_id": sup_id,
+           "items": [{"product": prod_name, "quantity": 50, "unit": "KG", "rate": 60}]}
+    r = client.put(f"{API}/purchases/{pid_purchase}", json=upd)
+    assert r.status_code == 200, r.text
+    assert r.json()["total"] == 50 * 60
+    p_after = _find_product_id_by_name(client, prod_name)
+    assert p_after["quantity"] == 50, f"expected 50 after edit, got {p_after['quantity']}"
+
+    # cleanup
+    client.delete(f"{API}/suppliers/{sup_id}")
+    client.delete(f"{API}/products/{p_after['id']}")
+
+
+def test_ensure_customer_case_insensitive(client):
+    name = "TEST_CaseCust"
+    # create initially via a sale
+    r = client.post(f"{API}/sales", json={
+        "customer_name": name,
+        "items": [{"product": "NON_EXIST_PROD_X", "quantity": 1, "unit": "PCS", "rate": 10}],
+    })
+    assert r.status_code == 200
+    # second sale using different case should NOT create a duplicate
+    r = client.post(f"{API}/sales", json={
+        "customer_name": name.lower(),
+        "items": [{"product": "NON_EXIST_PROD_X", "quantity": 1, "unit": "PCS", "rate": 10}],
+    })
+    assert r.status_code == 200
+    custs = [c for c in client.get(f"{API}/customers").json() if c["name"].lower() == name.lower()]
+    assert len(custs) == 1, f"expected 1 customer, got {len(custs)}"
+    client.delete(f"{API}/customers/{custs[0]['id']}")
