@@ -647,6 +647,16 @@ async def update_purchase(pid: str, p: Purchase, user=Depends(get_current_user))
     return clean(d)
 
 
+@api.delete("/purchases/{pid}")
+async def delete_purchase(pid: str, user=Depends(get_current_user)):
+    old = clean(await db.purchases.find_one({"id": pid}))
+    if not old:
+        raise HTTPException(404, "Not found")
+    await reverse_purchase_inventory(old.get("items", []))
+    await db.purchases.delete_one({"id": pid})
+    return {"ok": True}
+
+
 # Sales
 @api.get("/sales")
 async def list_sales(user=Depends(get_current_user)):
@@ -698,6 +708,16 @@ async def update_sale(sid: str, s: Sale, user=Depends(get_current_user)):
         d["invoice_number"] = old.get("invoice_number", "")
     await db.sales.update_one({"id": sid}, {"$set": d})
     return clean(d)
+
+
+@api.delete("/sales/{sid}")
+async def delete_sale(sid: str, user=Depends(get_current_user)):
+    old = clean(await db.sales.find_one({"id": sid}))
+    if not old:
+        raise HTTPException(404, "Not found")
+    await reverse_sale_inventory(old.get("items", []))
+    await db.sales.delete_one({"id": sid})
+    return {"ok": True}
 
 
 @api.get("/sales/{sid}/invoice")
@@ -771,6 +791,21 @@ async def list_payments(user=Depends(get_current_user)):
 async def create_payment(p: Payment, user=Depends(get_current_user)):
     await db.payments.insert_one(p.model_dump())
     return p
+
+
+@api.put("/payments/{pid}")
+async def update_payment(pid: str, body: dict, user=Depends(get_current_user)):
+    body.pop("id", None)
+    if "amount" in body:
+        body["amount"] = float(body.get("amount") or 0)
+    await db.payments.update_one({"id": pid}, {"$set": body})
+    return clean(await db.payments.find_one({"id": pid}))
+
+
+@api.delete("/payments/{pid}")
+async def delete_payment(pid: str, user=Depends(get_current_user)):
+    await db.payments.delete_one({"id": pid})
+    return {"ok": True}
 
 
 # ---------------------------------------------------------------------------

@@ -12,7 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Sliders, Download } from "lucide-react";
+import { Plus, Sliders, Download, Pencil } from "lucide-react";
 import { toast } from "sonner";
 
 function AdjustDialog({ product, onClose, onSaved }) {
@@ -36,18 +36,22 @@ function AdjustDialog({ product, onClose, onSaved }) {
   );
 }
 
-function ProductDialog({ open, onClose, onSaved }) {
-  const [f, setF] = useState({ name: "", specification: "", thickness: "", unit: "PCS", quantity: 0, avg_cost: 0, location: "", reorder_level: 0 });
+const productEmpty = { name: "", specification: "", thickness: "", unit: "PCS", quantity: 0, avg_cost: 0, location: "", reorder_level: 0 };
+
+function ProductDialog({ open, onClose, onSaved, initial }) {
+  const [f, setF] = useState(productEmpty);
+  const isEdit = !!initial?.id;
+  useEffect(() => { if (open) setF(initial ? { ...productEmpty, ...initial } : productEmpty); }, [open, initial]);
   const save = async () => {
     if (!f.name.trim()) return toast.error("Name required");
-    await api.post("/products", f);
-    markSaved(); toast.success("Product added"); onSaved(); onClose();
-    setF({ name: "", specification: "", thickness: "", unit: "PCS", quantity: 0, avg_cost: 0, location: "", reorder_level: 0 });
+    if (isEdit) await api.put(`/products/${initial.id}`, f);
+    else await api.post("/products", f);
+    markSaved(); toast.success(isEdit ? "Product updated" : "Product added"); onSaved(); onClose();
   };
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle className="font-heading">NEW PRODUCT</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle className="font-heading">{isEdit ? "EDIT PRODUCT" : "NEW PRODUCT"}</DialogTitle></DialogHeader>
         <div className="grid grid-cols-2 gap-3">
           <div className="col-span-2"><Label>Name</Label><Input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} data-testid="product-name" /></div>
           <div><Label>Specification</Label><Input value={f.specification} onChange={(e) => setF({ ...f, specification: e.target.value })} /></div>
@@ -58,12 +62,12 @@ function ProductDialog({ open, onClose, onSaved }) {
               <SelectContent>{UNITS.map((u) => <SelectItem key={u} value={u}>{u}</SelectItem>)}</SelectContent>
             </Select>
           </div>
-          <div><Label>Opening Qty</Label><Input type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: Number(e.target.value) })} className="font-mono" /></div>
+          <div><Label>Quantity</Label><Input type="number" value={f.quantity} onChange={(e) => setF({ ...f, quantity: Number(e.target.value) })} className="font-mono" /></div>
           <div><Label>Avg Cost</Label><Input type="number" value={f.avg_cost} onChange={(e) => setF({ ...f, avg_cost: Number(e.target.value) })} className="font-mono" /></div>
           <div><Label>Reorder Level</Label><Input type="number" value={f.reorder_level} onChange={(e) => setF({ ...f, reorder_level: Number(e.target.value) })} className="font-mono" /></div>
           <div><Label>Location</Label><Input value={f.location} onChange={(e) => setF({ ...f, location: e.target.value })} /></div>
         </div>
-        <DialogFooter><Button onClick={save} data-testid="confirm-product">SAVE PRODUCT</Button></DialogFooter>
+        <DialogFooter><Button onClick={save} data-testid="confirm-product">{isEdit ? "SAVE CHANGES" : "SAVE PRODUCT"}</Button></DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -102,6 +106,7 @@ export default function Inventory() {
   const [products, setProducts] = useState([]);
   const [coils, setCoils] = useState([]);
   const [pOpen, setPOpen] = useState(false);
+  const [pEdit, setPEdit] = useState(null);
   const [cOpen, setCOpen] = useState(false);
   const [adjust, setAdjust] = useState(null);
 
@@ -132,7 +137,7 @@ export default function Inventory() {
 
         <TabsContent value="stock" className="mt-4">
           <div className="flex justify-end mb-3">
-            <Button onClick={() => setPOpen(true)} data-testid="new-product-btn"><Plus size={16} className="mr-1" /> PRODUCT</Button>
+            <Button onClick={() => { setPEdit(null); setPOpen(true); }} data-testid="new-product-btn"><Plus size={16} className="mr-1" /> PRODUCT</Button>
           </div>
           <div className="border border-border rounded-sm bg-card overflow-x-auto">
             <table className="w-full text-sm">
@@ -161,7 +166,8 @@ export default function Inventory() {
                       <td className="p-3 text-right font-mono">{fmtMoney(p.avg_cost)}</td>
                       <td className="p-3 text-right font-mono text-primary">{fmtMoney(p.stock_value)}</td>
                       <td className="p-3 text-muted-foreground">{p.location}</td>
-                      <td className="p-3 text-right">
+                      <td className="p-3 text-right whitespace-nowrap">
+                        <button onClick={() => { setPEdit(p); setPOpen(true); }} className="text-muted-foreground hover:text-primary mr-3" data-testid={`edit-product-${p.id}`} title="Edit"><Pencil size={15} /></button>
                         <button onClick={() => setAdjust(p)} className="text-muted-foreground hover:text-primary" title="Adjust"><Sliders size={16} /></button>
                       </td>
                     </tr>
@@ -208,7 +214,7 @@ export default function Inventory() {
         </TabsContent>
       </Tabs>
 
-      <ProductDialog open={pOpen} onClose={() => setPOpen(false)} onSaved={load} />
+      <ProductDialog open={pOpen} onClose={() => setPOpen(false)} onSaved={load} initial={pEdit} />
       <CoilDialog open={cOpen} onClose={() => setCOpen(false)} onSaved={load} />
       {adjust && <AdjustDialog product={adjust} onClose={() => setAdjust(null)} onSaved={load} />}
     </div>

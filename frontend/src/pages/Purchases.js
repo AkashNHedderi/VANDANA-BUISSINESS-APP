@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter,
 } from "@/components/ui/dialog";
-import { Plus, FileText, Loader2, CheckCircle2 } from "lucide-react";
+import { Plus, FileText, Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
@@ -117,6 +117,13 @@ export default function Purchases() {
     if (params.get("scan") === "1") { fileRef.current?.click(); setParams({}); }
   }, [params]);
 
+  const deletePurchase = async (e, p) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete purchase ${p.invoice_number || ""}? Stock added by it will be reversed.`)) return;
+    try { await api.delete(`/purchases/${p.id}`); markSaved(); toast.success("Purchase deleted · stock reversed"); load(); }
+    catch (err) { toast.error(errMsg(err)); }
+  };
+
   const onScan = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -158,16 +165,22 @@ export default function Purchases() {
               <th className="text-left p-3">Invoice</th>
               <th className="text-left p-3">Supplier</th>
               <th className="text-right p-3">Total</th>
+              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-border" data-testid="purchases-table">
-            {purchases.length === 0 && <tr><td colSpan={4} className="p-6 text-center text-muted-foreground">No purchases yet.</td></tr>}
+            {purchases.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No purchases yet.</td></tr>}
             {purchases.map((p) => (
               <tr key={p.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => { setInitial(p); setDlgOpen(true); }} data-testid={`purchase-row-${p.id}`}>
                 <td className="p-3 font-mono">{fmtDate(p.date)}</td>
                 <td className="p-3 font-mono">{p.invoice_number}</td>
                 <td className="p-3">{p.supplier_name}</td>
                 <td className="p-3 text-right font-mono">{fmtMoney(p.total)}</td>
+                <td className="p-3 text-right">
+                  <button onClick={(e) => deletePurchase(e, p)} className="text-muted-foreground hover:text-danger" data-testid={`delete-purchase-${p.id}`} title="Delete purchase">
+                    <Trash2 size={16} />
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

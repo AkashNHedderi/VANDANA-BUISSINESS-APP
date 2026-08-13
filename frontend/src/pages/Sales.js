@@ -13,7 +13,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { Plus, Camera, Download, Loader2, CheckCircle2, FileText } from "lucide-react";
+import { Plus, Camera, Download, Loader2, CheckCircle2, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
 function SaleDialog({ open, onClose, onSaved, initial, customers, products }) {
@@ -119,6 +119,13 @@ export default function Sales() {
     if (params.get("scan") === "1") { fileRef.current?.click(); setParams({}); }
   }, [params]);
 
+  const deleteSale = async (e, s) => {
+    e.stopPropagation();
+    if (!window.confirm(`Delete sale ${s.invoice_number}? Stock will be restored.`)) return;
+    try { await api.delete(`/sales/${s.id}`); markSaved(); toast.success("Sale deleted · stock restored"); load(); }
+    catch (err) { toast.error(errMsg(err)); }
+  };
+
   const onScan = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = "";
@@ -184,9 +191,12 @@ export default function Sales() {
                 <td className="p-3">{s.customer_name}</td>
                 <td className="p-3 text-right font-mono">{fmtMoney(s.total)}</td>
                 <td className="p-3 text-right font-mono text-success">{fmtMoney(s.profit)}</td>
-                <td className="p-3 text-right">
-                  <button onClick={(e) => { e.stopPropagation(); downloadInvoice(s); }} className="text-primary hover:text-primary/80" data-testid={`invoice-${s.id}`} title="Download invoice">
+                <td className="p-3 text-right whitespace-nowrap">
+                  <button onClick={(e) => { e.stopPropagation(); downloadInvoice(s); }} className="text-primary hover:text-primary/80 mr-3" data-testid={`invoice-${s.id}`} title="Download invoice">
                     <Download size={16} />
+                  </button>
+                  <button onClick={(e) => deleteSale(e, s)} className="text-muted-foreground hover:text-danger" data-testid={`delete-sale-${s.id}`} title="Delete sale">
+                    <Trash2 size={16} />
                   </button>
                 </td>
               </tr>
