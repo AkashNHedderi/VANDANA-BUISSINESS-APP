@@ -16,7 +16,7 @@ import {
 import { Plus, Camera, Download, Loader2, CheckCircle2, FileText, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-function SaleDialog({ open, onClose, onSaved, initial, customers, products }) {
+function SaleDialog({ open, onClose, onSaved, initial, customers, products, onCreateProduct }) {
   const [form, setForm] = useState({ customer_id: "", customer_name: "", date: fmtDate(new Date().toISOString()) });
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
@@ -82,7 +82,7 @@ function SaleDialog({ open, onClose, onSaved, initial, customers, products }) {
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="font-mono" data-testid="sale-date" />
             </div>
           </div>
-          <LineItemsEditor items={items} setItems={setItems} mode="sale" products={products} />
+          <LineItemsEditor items={items} setItems={setItems} mode="sale" products={products} onCreateProduct={onCreateProduct} />
           <div className="text-right font-mono text-xl text-primary" data-testid="sale-total">TOTAL: {fmtMoney(total)}</div>
         </div>
         <DialogFooter>
@@ -124,6 +124,15 @@ export default function Sales() {
     if (!window.confirm(`Delete sale ${s.invoice_number}? Stock will be restored.`)) return;
     try { await api.delete(`/sales/${s.id}`); markSaved(); toast.success("Sale deleted · stock restored"); load(); }
     catch (err) { toast.error(errMsg(err)); }
+  };
+
+  const createProduct = async (name) => {
+    try {
+      const r = await api.post("/products", { name, unit: "PCS" });
+      const list = await api.get("/products"); setProducts(list.data);
+      markSaved(); toast.success(`"${name}" added to inventory`);
+      return r.data;
+    } catch (err) { toast.error(errMsg(err)); return null; }
   };
 
   const onScan = async (e) => {
@@ -205,7 +214,7 @@ export default function Sales() {
         </table>
       </div>
 
-      <SaleDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} customers={customers} products={products} />
+      <SaleDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} customers={customers} products={products} onCreateProduct={createProduct} />
     </div>
   );
 }

@@ -16,7 +16,7 @@ export function lineTotal(it) {
   return Math.round((withGst + (Number(it.freight) || 0)) * 100) / 100;
 }
 
-export default function LineItemsEditor({ items, setItems, mode = "sale", products = [] }) {
+export default function LineItemsEditor({ items, setItems, mode = "sale", products = [], onCreateProduct }) {
   const update = (i, key, val) => {
     const next = items.map((it, idx) => (idx === i ? { ...it, [key]: val } : it));
     next[i].total = lineTotal(next[i]);
@@ -39,7 +39,7 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
     <div className="space-y-3" data-testid="line-items">
       {mode === "sale" && products.length === 0 && (
         <div className="text-xs text-warning font-mono border border-warning/40 rounded-sm p-2">
-          No products in inventory yet. Add stock in Inventory (or via a Purchase) before creating a sale.
+          No products yet. Use "+ Create new product" in the item dropdown to add one instantly.
         </div>
       )}
       {items.map((it, i) => {
@@ -54,11 +54,12 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {mode === "sale" ? (
                 <div className="col-span-2 md:col-span-2">
-                  <Select value={it.product || undefined} onValueChange={(v) => selectProduct(i, v)}>
+                  <Select value={it.product || undefined} onValueChange={(v) => (v === "__new__" ? handleCreate(i) : selectProduct(i, v))}>
                     <SelectTrigger data-testid={`item-product-${i}`}>
                       <SelectValue placeholder="Select product from stock" />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="__new__" className="text-primary" data-testid={`item-product-new-${i}`}>+ Create new product…</SelectItem>
                       {products.map((p) => (
                         <SelectItem key={p.id} value={p.name}>
                           {p.name}{p.specification ? ` · ${p.specification}` : ""} ({p.quantity} {p.unit})
