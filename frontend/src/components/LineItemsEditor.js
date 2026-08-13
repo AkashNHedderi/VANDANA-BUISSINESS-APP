@@ -35,6 +35,18 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
   const add = () => setItems([...items, emptyItem()]);
   const remove = (i) => setItems(items.filter((_, idx) => idx !== i));
 
+  const handleCreate = async (i) => {
+    const name = window.prompt("New product name (auto-added to inventory):");
+    if (!name || !name.trim()) return;
+    let created = { name: name.trim(), unit: "PCS" };
+    if (onCreateProduct) { const c = await onCreateProduct(name.trim()); if (c) created = c; }
+    const next = items.map((it, idx) =>
+      idx === i ? { ...it, product: created.name, unit: created.unit || it.unit, specification: created.specification || it.specification } : it
+    );
+    next[i].total = lineTotal(next[i]);
+    setItems(next);
+  };
+
   return (
     <div className="space-y-3" data-testid="line-items">
       {mode === "sale" && products.length === 0 && (

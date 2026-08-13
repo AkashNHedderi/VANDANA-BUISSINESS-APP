@@ -1,0 +1,25 @@
+{
+  "summary": "Frontend-only verification of the 'handleCreate is not defined' ReferenceError fix in LineItemsEditor.js. Logged in via PIN 112233, opened NEW SALE, clicked '+ Create new product…' (data-testid item-product-new-0). window.prompt appeared, accepted with 'QA New Product <ts>' — no page errors, no ReferenceError, no error overlay. Product auto-filled into line item, sale confirmed successfully (INV-1006, ₹1,180, profit ₹1,180). New product visible in Inventory Stock tab and in the product dropdown for subsequent sales. Regression: clicking an existing sale row opens the EDIT SALE dialog with prefilled product/customer/qty/rate — no errors.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SaleDialog", "issues": ["Radix warning: DialogContent missing Description/aria-describedby (a11y)", "Select warning: changing from uncontrolled to controlled (item.product initial value)"]}
+    ]
+  },
+  "test_report_links": [],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "LineItemsEditor Select: value={it.product || undefined} then setting to a string triggers uncontrolled->controlled warning; initialise product as '' and pass explicit value or use defaultValue consistently.",
+    "DialogContent should include DialogDescription or aria-describedby to satisfy Radix a11y warning."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a", "frontend": "100%"},
+  "test_credentials": "PIN 112233",
+  "seed_data_creation": "Created one product 'QA New Product 1786639981' and one sale INV-1006 (QA Customer, qty 2 @ ₹500) during the run.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Bug fix confirmed. Sidebar link text is 'Sales' (title case), not 'SALES'. window.prompt used for new product name — must register page.on('dialog', accept) BEFORE clicking item-product-new-0. sale-row-<id> testids are present and clickable.",
+  "rca of the issue": "handleCreate function was referenced by the Select's onValueChange but was not defined in the LineItemsEditor component scope, causing ReferenceError when the '+ Create new product…' option (value='__new__') was chosen. Fix: re-added handleCreate(i) which prompts for name, calls onCreateProduct, and updates the line item. Verified: onValueChange now branches to handleCreate for '__new__' and selectProduct otherwise; no runtime errors captured via pageerror or console."
+}
