@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Search, Sparkles, CornerDownLeft, Loader2 } from "lucide-react";
+import { Search, Sparkles, CornerDownLeft, Loader2, FileDown } from "lucide-react";
 import api, { errMsg } from "@/lib/apiClient";
 import { toast } from "sonner";
 import {
@@ -45,12 +45,24 @@ export default function AskBox({ variant = "full" }) {
     try {
       const r = await api.post("/analytics/ask", { question: qq, session_id: session, range });
       setSession(r.data.session_id);
-      setThread((t) => [...t, { role: "ai", text: r.data.answer }]);
+      setThread((t) => [...t, { role: "ai", text: r.data.answer, q: qq }]);
     } catch (e) {
       toast.error(errMsg(e));
       setThread((t) => [...t, { role: "ai", text: "Sorry, I could not answer that." }]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const downloadPdf = async (question, answer) => {
+    try {
+      const r = await api.post("/analytics/pdf", { question, answer }, { responseType: "blob" });
+      const url = URL.createObjectURL(r.data);
+      const a = document.createElement("a");
+      a.href = url; a.download = "business_insight.pdf"; a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      toast.error("Could not generate PDF");
     }
   };
 
@@ -102,6 +114,13 @@ export default function AskBox({ variant = "full" }) {
               >
                 {m.text}
               </div>
+              {m.role === "ai" && m.q && (
+                <div>
+                  <button onClick={() => downloadPdf(m.q, m.text)} data-testid="ask-download-pdf" className="mt-1 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                    <FileDown size={12} /> Save as PDF
+                  </button>
+                </div>
+              )}
             </div>
           ))}
           {loading && (

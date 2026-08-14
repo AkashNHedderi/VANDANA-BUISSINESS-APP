@@ -11,6 +11,7 @@ import Inventory from "@/pages/Inventory";
 import Customers from "@/pages/Customers";
 import Suppliers from "@/pages/Suppliers";
 import Payments from "@/pages/Payments";
+import Expenses from "@/pages/Expenses";
 import Reports from "@/pages/Reports";
 import Analytics from "@/pages/Analytics";
 import Settings from "@/pages/Settings";
@@ -44,6 +45,7 @@ function App() {
               <Route path="customers" element={<Customers />} />
               <Route path="suppliers" element={<Suppliers />} />
               <Route path="payments" element={<Payments />} />
+              <Route path="expenses" element={<Expenses />} />
               <Route path="reports" element={<Reports />} />
               <Route path="analytics" element={<Analytics />} />
               <Route path="settings" element={<Settings />} />

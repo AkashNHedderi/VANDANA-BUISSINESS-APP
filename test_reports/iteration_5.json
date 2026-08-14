@@ -1,0 +1,43 @@
+{
+  "summary": "Full-frontend E2E validation of the 5 new enhancements (backend already curl-verified by main agent). PIN 112233 login works. Dashboard shows kpi-net-profit (₹52,400.5) and kpi-expenses (₹3,500, Today ₹3,500) correctly. Expenses page: NEW EXPENSE dialog saves; row appears in expenses-table; edit/delete testids present; delete removes the row (2→1). Customers page: customer-search filters (9→1 for 'Ravi'). Inventory Stock: inventory-search filters (24→1 for 'GI Pipe'). Sales: NEW SALE opens; item-product-0 is a searchable text picker — typing 'GI' shows 1 dropdown option 'GI Pipe', click fills the line and auto-sets unit; qty/rate → CONFIRM SALE succeeds with toast 'Sale saved · inventory updated · profit calculated'; inline create option item-product-0-new works — typing a novel name shows '+ Create \"…\"', clicking it creates the product and fills the line (verified by picker value = new name after click). Ask My Business: ask-download-pdf appears after AI answer; clicking triggers a real download of business_insight.pdf (application/pdf).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "Customers.js CustomerForm.save",
+        "issue": "No try/catch around api.post/api.put. When backend returns 409 (duplicate name), the axios error becomes an UNHANDLED promise rejection — no toast is shown to the user, dialog stays open silently, and in dev the webpack error overlay pops up ('Uncaught runtime errors: Request failed with status code 409'). Requirement says a duplicate customer must show an error toast.",
+        "selector": "[data-testid=\"confirm-customer\"]",
+        "priority": "HIGH"
+      },
+      {
+        "component": "Inventory.js ProductForm.save",
+        "issue": "Same as above — no try/catch around api.post('/products'). Duplicate product name → 409 → unhandled rejection, no toast, dev overlay blocks the UI. Requirement says duplicate product must show error toast.",
+        "selector": "[data-testid=\"confirm-product\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "SaleDialog / other dialogs", "issues": ["Radix warning: DialogContent missing DialogDescription/aria-describedby (pre-existing a11y warning, not blocking)"]}
+    ]
+  },
+  "test_report_links": ["/app/backend/tests/backend_test.py"],
+  "action_items": [
+    "In /app/frontend/src/pages/Customers.js CustomerForm.save(), wrap the create/update calls in try/catch and show toast.error(errMsg(e)) on failure (mirror the pattern already used in Expenses.js).",
+    "In /app/frontend/src/pages/Inventory.js ProductForm.save() (and also CoilForm.save/adjust dialogs for consistency), wrap in try/catch and toast.error(errMsg(e)). Keep the dialog open so the user can correct the name.",
+    "Optional: add DialogDescription to Sale/Expense/Customer/Product DialogContent to silence Radix a11y warning."
+  ],
+  "critical_code_review_comments": [
+    "Duplicate-guard error handling is missing on the two most user-visible create forms (Customers, Products). Backend correctly returns 409 but frontend swallows it as an unhandled rejection instead of surfacing a toast — exactly the UX the review request asked for.",
+    "Expenses.js correctly uses try { ... } catch (e) { toast.error(errMsg(e)); } — use it as the reference pattern for Customers and Inventory.",
+    "LineItemsEditor ProductPicker uses a native <input> with a custom dropdown (good — matches spec). onCreate flow properly awaits onCreateProduct and falls back to a minimal product if the callback is missing."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (curl-verified by main agent)", "frontend": "86% (6/7 flows fully pass; duplicate error toast missing on Customers & Products)"},
+  "test_credentials": "PIN 112233",
+  "seed_data_creation": "Created 1 expense (Fuel ₹150) — deleted during the run. Created 1 sale (GI Pipe qty 1 @ ₹100, customer 'Ravi Traders'). Created 1 product 'ZZQA-1786721217' via inline picker. Left in DB for follow-up if needed.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Login uses number-pad buttons (1-9,0,GO), not a text input — click each digit then 'GO'. Sales dialog testids: sale-customer, sale-date, item-product-0, item-qty-0, item-rate-0, confirm-sale, sale-total. ProductPicker is a plain <input data-testid=item-product-0> with a floating dropdown of <button> options; type to filter then click the matching <button>. Inline create button is data-testid=item-product-0-new. All /api routes work. To retest duplicate toasts after fix: open Customers → NEW CUSTOMER → name 'Ravi Traders' → confirm-customer → expect toast.error and dialog stays open (no dev overlay). Same for products with 'GI Pipe'.",
+  "rca of the issue": "Customers.js CustomerForm.save() and Inventory.js ProductForm.save() are `async` functions that call `await api.post(...)` without a try/catch. When the backend returns 409 for a duplicate name, axios rejects with AxiosError. Because save() is invoked directly from an onClick without a .catch(), the rejection becomes an unhandled promise rejection — React dev-server's error overlay traps it and displays the full-screen 'Uncaught runtime errors: Request failed with status code 409'. In production the overlay would not appear but no toast would either, so the user would be left with a silent failure. Fix: wrap the body of save() in try/catch and call toast.error(errMsg(e)) on failure, mirroring Expenses.js. Also DO NOT call markSaved()/toast.success()/onClose() when the request throws — those currently sit after the await and would be reached only on success, so they are safe."
+}

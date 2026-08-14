@@ -31,6 +31,7 @@ const ACTIONS = [
   { l: "+ PURCHASE", to: "/purchases?new=1", icon: ShoppingCart },
   { l: "SCAN PDF", to: "/purchases?scan=1", icon: FileText },
   { l: "+ PAYMENT", to: "/payments?new=1", icon: Wallet },
+  { l: "+ EXPENSE", to: "/expenses?new=1", icon: TrendingDown },
   { l: "INVENTORY", to: "/inventory", icon: Boxes },
 ];
 
@@ -98,7 +99,9 @@ export default function Dashboard() {
             <Kpi testid="kpi-stock" label="Stock Value" value={fmtMoney(d.inventory.stock_value)} sub={`${fmtNum(d.inventory.stock_qty)} units`} />
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+            <Kpi testid="kpi-net-profit" label="Net Profit" value={fmtMoney(d.profit.net)} accent={d.profit.net >= 0 ? "text-success" : "text-danger"} sub="After expenses" />
+            <Kpi testid="kpi-expenses" label="Expenses (range)" value={fmtMoney(d.profit.expenses)} accent="text-danger" sub={`Today ${fmtMoney(d.profit.expenses_today)}`} />
             <Kpi testid="kpi-cust-out" label="Customer Outstanding" value={fmtMoney(d.money.customer_outstanding)} accent="text-warning" sub={`Overdue ${fmtMoney(d.money.overdue)}`} />
             <Kpi testid="kpi-supp-out" label="Supplier Payable" value={fmtMoney(d.money.supplier_outstanding)} accent="text-danger" />
             <Kpi testid="kpi-low-stock" label="Low Stock Items" value={d.inventory.low_stock_count} accent={d.inventory.low_stock_count ? "text-warning" : "text-success"} />

@@ -44,9 +44,11 @@ function ProductDialog({ open, onClose, onSaved, initial }) {
   useEffect(() => { if (open) setF(initial ? { ...productEmpty, ...initial } : productEmpty); }, [open, initial]);
   const save = async () => {
     if (!f.name.trim()) return toast.error("Name required");
-    if (isEdit) await api.put(`/products/${initial.id}`, f);
-    else await api.post("/products", f);
-    markSaved(); toast.success(isEdit ? "Product updated" : "Product added"); onSaved(); onClose();
+    try {
+      if (isEdit) await api.put(`/products/${initial.id}`, f);
+      else await api.post("/products", f);
+      markSaved(); toast.success(isEdit ? "Product updated" : "Product added"); onSaved(); onClose();
+    } catch (e) { toast.error(errMsg(e)); }
   };
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -109,12 +111,14 @@ export default function Inventory() {
   const [pEdit, setPEdit] = useState(null);
   const [cOpen, setCOpen] = useState(false);
   const [adjust, setAdjust] = useState(null);
+  const [q, setQ] = useState("");
 
   const load = () => {
     api.get("/products").then((r) => setProducts(r.data));
     api.get("/coils").then((r) => setCoils(r.data));
   };
   useEffect(() => { load(); }, []);
+  const shownProducts = products.filter((p) => `${p.name} ${p.specification || ""} ${p.location || ""}`.toLowerCase().includes(q.toLowerCase()));
 
   const exportCsv = async () => {
     const r = await api.get("/export/inventory", { responseType: "blob" });
@@ -136,7 +140,8 @@ export default function Inventory() {
         </TabsList>
 
         <TabsContent value="stock" className="mt-4">
-          <div className="flex justify-end mb-3">
+          <div className="flex justify-between gap-2 mb-3">
+            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search product…" className="max-w-xs" data-testid="inventory-search" />
             <Button onClick={() => { setPEdit(null); setPOpen(true); }} data-testid="new-product-btn"><Plus size={16} className="mr-1" /> PRODUCT</Button>
           </div>
           <div className="border border-border rounded-sm bg-card overflow-x-auto">
@@ -154,8 +159,8 @@ export default function Inventory() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border" data-testid="inventory-table">
-                {products.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No products yet.</td></tr>}
-                {products.map((p) => {
+                {shownProducts.length === 0 && <tr><td colSpan={8} className="p-6 text-center text-muted-foreground">No products found.</td></tr>}
+                {shownProducts.map((p) => {
                   const low = p.reorder_level > 0 && p.quantity <= p.reorder_level;
                   return (
                     <tr key={p.id} className="hover:bg-accent/50" data-testid="inventory-row">

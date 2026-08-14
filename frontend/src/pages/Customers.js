@@ -20,9 +20,11 @@ function CustomerForm({ open, onClose, onSaved, initial }) {
   useEffect(() => { if (open) setF(initial ? { ...customerEmpty, ...initial } : customerEmpty); }, [open, initial]);
   const save = async () => {
     if (!f.name.trim()) return toast.error("Name required");
-    if (isEdit) await api.put(`/customers/${initial.id}`, f);
-    else await api.post("/customers", f);
-    markSaved(); toast.success(isEdit ? "Customer updated" : "Customer added"); onSaved(); onClose();
+    try {
+      if (isEdit) await api.put(`/customers/${initial.id}`, f);
+      else await api.post("/customers", f);
+      markSaved(); toast.success(isEdit ? "Customer updated" : "Customer added"); onSaved(); onClose();
+    } catch (e) { toast.error(errMsg(e)); }
   };
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -81,11 +83,13 @@ export default function Customers() {
   const [open, setOpen] = useState(false);
   const [edit, setEdit] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [q, setQ] = useState("");
   const [params, setParams] = useSearchParams();
 
   const load = () => api.get("/customers").then((r) => setList(r.data));
   useEffect(() => { load(); }, []);
   useEffect(() => { const id = params.get("id"); if (id) { setDetail(id); setParams({}); } }, [params]);
+  const shown = list.filter((c) => `${c.name} ${c.mobile || ""} ${c.gstin || ""}`.toLowerCase().includes(q.toLowerCase()));
 
   const exportCsv = async () => {
     const r = await api.get("/export/customers", { responseType: "blob" });
@@ -96,6 +100,7 @@ export default function Customers() {
   return (
     <div className="rise">
       <PageHeader title="CUSTOMERS">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search customer…" className="w-44 sm:w-56" data-testid="customer-search" />
         <Button variant="outline" onClick={exportCsv}><Download size={16} className="mr-1" /> CSV</Button>
         <Button onClick={() => { setEdit(null); setOpen(true); }} data-testid="new-customer-btn"><Plus size={16} className="mr-1" /> CUSTOMER</Button>
       </PageHeader>
@@ -105,8 +110,8 @@ export default function Customers() {
             <tr><th className="text-left p-3">Name</th><th className="text-left p-3">Mobile</th><th className="text-left p-3">GSTIN</th><th className="text-right p-3">Outstanding</th><th className="p-3"></th></tr>
           </thead>
           <tbody className="divide-y divide-border" data-testid="customers-table">
-            {list.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No customers yet.</td></tr>}
-            {list.map((c) => (
+            {shown.length === 0 && <tr><td colSpan={5} className="p-6 text-center text-muted-foreground">No customers found.</td></tr>}
+            {shown.map((c) => (
               <tr key={c.id} onClick={() => setDetail(c.id)} className="hover:bg-accent/50 cursor-pointer" data-testid={`customer-row-${c.id}`}>
                 <td className="p-3">{c.name}</td>
                 <td className="p-3 font-mono">{c.mobile}</td>

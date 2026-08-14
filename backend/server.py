@@ -284,6 +284,17 @@ class Payment(BaseModel):
     created_at: str = Field(default_factory=now_iso)
 
 
+class Expense(BaseModel):
+    id: str = Field(default_factory=new_id)
+    date: str = Field(default_factory=today_str)
+    category: str = "General"
+    description: str = ""
+    amount: float = 0
+    mode: str = "Cash"
+    created_at: str = Field(default_factory=now_iso)
+
+
+
 class AskBody(BaseModel):
     question: str
     session_id: Optional[str] = None
@@ -468,6 +479,9 @@ async def get_customer(cid: str, user=Depends(get_current_user)):
 
 @api.post("/customers")
 async def create_customer(c: Customer, user=Depends(get_current_user)):
+    existing = await db.customers.find_one({"name": {"$regex": f"^{re.escape(c.name.strip())}$", "$options": "i"}})
+    if existing:
+        raise HTTPException(status_code=409, detail=f"Customer '{c.name}' already exists")
     await db.customers.insert_one(c.model_dump())
     return c
 
@@ -540,6 +554,9 @@ async def list_products(user=Depends(get_current_user)):
 
 @api.post("/products")
 async def create_product(p: Product, user=Depends(get_current_user)):
+    dup = await find_product(p.name, p.specification or "")
+    if dup:
+        raise HTTPException(status_code=409, detail=f"Product '{p.name}' already exists in inventory")
     await db.products.insert_one(p.model_dump())
     return p
 
@@ -808,6 +825,32 @@ async def delete_payment(pid: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+@api.get("/expenses")
+async def list_expenses(user=Depends(get_current_user)):
+    return await db.expenses.find({}, {"_id": 0}).sort("date", -1).to_list(10000)
+
+
+@api.post("/expenses")
+async def create_expense(e: Expense, user=Depends(get_current_user)):
+    await db.expenses.insert_one(e.model_dump())
+    return e
+
+
+@api.put("/expenses/{eid}")
+async def update_expense(eid: str, body: dict, user=Depends(get_current_user)):
+    body.pop("id", None)
+    if "amount" in body:
+        body["amount"] = float(body.get("amount") or 0)
+    await db.expenses.update_one({"id": eid}, {"$set": body})
+    return clean(await db.expenses.find_one({"id": eid}))
+
+
+@api.delete("/expenses/{eid}")
+async def delete_expense(eid: str, user=Depends(get_current_user)):
+    await db.expenses.delete_one({"id": eid})
+    return {"ok": True}
+
+
 # ---------------------------------------------------------------------------
 # Dashboard
 # ---------------------------------------------------------------------------
@@ -832,6 +875,11 @@ async def dashboard(range: str = "month", start: Optional[str] = None, end: Opti
     ranged = [x for x in sales if in_range(x.get("date", ""), s, e)]
     ranged_sales = round(sum(float(x.get("total") or 0) for x in ranged), 2)
     ranged_profit = round(sum(float(x.get("profit") or 0) for x in ranged), 2)
+
+    all_expenses = await db.expenses.find({}, {"_id": 0}).to_list(100000)
+    ranged_expenses = round(sum(float(x.get("amount") or 0) for x in all_expenses if in_range(x.get("date", ""), s, e)), 2)
+    today_expenses = round(sum(float(x.get("amount") or 0) for x in all_expenses if x.get("date", "")[:10] == today), 2)
+    month_expenses = round(sum(float(x.get("amount") or 0) for x in all_expenses if in_range(x.get("date", ""), month_start, today)), 2)
 
     # growth: compare with previous equal-length period (month by default)
     prev_start, prev_end = parse_date_range("last_month", None, None)
@@ -884,6 +932,10 @@ async def dashboard(range: str = "month", start: Optional[str] = None, end: Opti
             "month": sum_profit(lambda x: in_range(x.get("date", ""), month_start, today)),
             "range": ranged_profit,
             "margin": gross_margin,
+            "expenses": ranged_expenses,
+            "expenses_today": today_expenses,
+            "expenses_month": month_expenses,
+            "net": round(ranged_profit - ranged_expenses, 2),
         },
         "inventory": {"stock_value": total_stock_value, "stock_qty": total_stock_qty,
                       "low_stock_count": len(low_stock), "low_stock": low_stock[:10]},
@@ -1025,6 +1077,9 @@ async def build_snapshot(s: Optional[str], e: Optional[str]) -> dict:
     suppliers = await db.suppliers.find({}, {"_id": 0}).to_list(100000)
 
     ranged_sales = [x for x in sales if in_range(x.get("date", ""), s, e)]
+    all_expenses = await db.expenses.find({}, {"_id": 0}).to_list(100000)
+    ranged_expenses = [x for x in all_expenses if in_range(x.get("date", ""), s, e)]
+    total_expenses = round(sum(float(x.get("amount") or 0) for x in ranged_expenses), 2)
 
     # per-product profitability
     prod_stats = {}
@@ -1091,11 +1146,14 @@ async def build_snapshot(s: Optional[str], e: Optional[str]) -> dict:
             "total_profit": round(sum(float(x.get("profit") or 0) for x in ranged_sales), 2),
             "num_sales": len(ranged_sales),
             "total_stock_value": round(sum(i["stock_value"] for i in inv), 2),
+            "total_expenses": total_expenses,
+            "net_profit": round(sum(float(x.get("profit") or 0) for x in ranged_sales) - total_expenses, 2),
         },
         "product_profitability": prod_list,
         "customers": cust_stats,
         "suppliers": supp_stats,
         "inventory": inv,
+        "expenses": [{"date": x.get("date"), "category": x.get("category"), "description": x.get("description"), "amount": x.get("amount")} for x in ranged_expenses],
         "recent_sales": sorted(ranged_sales, key=lambda x: x.get("date", ""), reverse=True)[:20],
     }
 
@@ -1136,6 +1194,52 @@ Answer using only the DATA above."""
     await db.analytics_chats.insert_one({"id": new_id(), "session_id": session_id,
                                          "question": body.question, "answer": answer, "created_at": now_iso()})
     return {"answer": answer, "session_id": session_id}
+
+
+@api.post("/analytics/pdf")
+async def analytics_pdf(body: dict, user=Depends(get_current_user)):
+    from reportlab.lib.utils import simpleSplit
+    question = body.get("question", "")
+    answer = body.get("answer", "")
+    buf = io.BytesIO()
+    c = canvas.Canvas(buf, pagesize=A4)
+    w, h = A4
+    c.setFillColor(colors.HexColor("#F97316"))
+    c.rect(0, h - 18 * mm, w, 18 * mm, fill=1, stroke=0)
+    c.setFillColor(colors.white)
+    c.setFont("Helvetica-Bold", 16)
+    c.drawString(18 * mm, h - 12 * mm, "VANDANA - Business Insight")
+    y = h - 30 * mm
+    c.setFillColor(colors.black)
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(18 * mm, y, "Question")
+    y -= 6 * mm
+    c.setFont("Helvetica", 10)
+    for line in simpleSplit(question, "Helvetica", 10, w - 36 * mm):
+        c.drawString(18 * mm, y, line)
+        y -= 5 * mm
+    y -= 4 * mm
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(18 * mm, y, "Answer")
+    y -= 6 * mm
+    c.setFont("Helvetica", 10)
+    clean_answer = answer.replace("**", "").replace("₹", "Rs. ")
+    for para in clean_answer.split("\n"):
+        for line in (simpleSplit(para, "Helvetica", 10, w - 36 * mm) or [""]):
+            if y < 20 * mm:
+                c.showPage()
+                y = h - 20 * mm
+                c.setFont("Helvetica", 10)
+            c.drawString(18 * mm, y, line)
+            y -= 5 * mm
+    c.setFont("Helvetica-Oblique", 8)
+    c.setFillColor(colors.grey)
+    c.drawString(18 * mm, 12 * mm, f"Generated by VANDANA - {today_str()}")
+    c.showPage()
+    c.save()
+    buf.seek(0)
+    return Response(content=buf.read(), media_type="application/pdf",
+                    headers={"Content-Disposition": "attachment; filename=business_insight.pdf"})
 
 
 # ---------------------------------------------------------------------------

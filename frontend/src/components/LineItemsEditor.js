@@ -1,3 +1,4 @@
+import { useState, useRef, useEffect } from "react";
 import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,6 +15,47 @@ export function lineTotal(it) {
   const base = (Number(it.quantity) || 0) * (Number(it.rate) || 0) - (Number(it.discount) || 0);
   const withGst = base + (base * (Number(it.gst) || 0)) / 100;
   return Math.round((withGst + (Number(it.freight) || 0)) * 100) / 100;
+}
+
+function ProductPicker({ value, products, onSelect, onCreate, testid }) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  const query = q.trim().toLowerCase();
+  const filtered = products.filter((p) => `${p.name} ${p.specification || ""}`.toLowerCase().includes(query));
+  const exact = products.some((p) => p.name.toLowerCase() === query);
+  return (
+    <div className="relative" ref={ref}>
+      <input
+        data-testid={testid}
+        value={open ? q : (value || "")}
+        onFocus={() => { setOpen(true); setQ(""); }}
+        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
+        placeholder="Search or add product…"
+        className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+      />
+      {open && (
+        <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-sm border border-border bg-popover shadow-xl">
+          {query && !exact && (
+            <button type="button" data-testid={`${testid}-new`} onClick={() => { onCreate(q.trim()); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-accent">
+              + Create "{q.trim()}"
+            </button>
+          )}
+          {filtered.map((p) => (
+            <button type="button" key={p.id} onClick={() => { onSelect(p.name); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-accent">
+              {p.name}{p.specification ? ` · ${p.specification}` : ""} <span className="text-muted-foreground">({p.quantity} {p.unit})</span>
+            </button>
+          ))}
+          {filtered.length === 0 && !query && <div className="px-3 py-2 text-xs text-muted-foreground">Type to search products…</div>}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function LineItemsEditor({ items, setItems, mode = "sale", products = [], onCreateProduct }) {
@@ -35,11 +77,9 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
   const add = () => setItems([...items, emptyItem()]);
   const remove = (i) => setItems(items.filter((_, idx) => idx !== i));
 
-  const handleCreate = async (i) => {
-    const name = window.prompt("New product name (auto-added to inventory):");
-    if (!name || !name.trim()) return;
-    let created = { name: name.trim(), unit: "PCS" };
-    if (onCreateProduct) { const c = await onCreateProduct(name.trim()); if (c) created = c; }
+  const handleCreate = async (i, name) => {
+    let created = { name, unit: "PCS" };
+    if (onCreateProduct) { const c = await onCreateProduct(name); if (c) created = c; else return; }
     const next = items.map((it, idx) =>
       idx === i ? { ...it, product: created.name, unit: created.unit || it.unit, specification: created.specification || it.specification } : it
     );
@@ -66,19 +106,7 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {mode === "sale" ? (
                 <div className="col-span-2 md:col-span-2">
-                  <Select value={it.product || undefined} onValueChange={(v) => (v === "__new__" ? handleCreate(i) : selectProduct(i, v))}>
-                    <SelectTrigger data-testid={`item-product-${i}`}>
-                      <SelectValue placeholder="Select product from stock" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="__new__" className="text-primary" data-testid={`item-product-new-${i}`}>+ Create new product…</SelectItem>
-                      {products.map((p) => (
-                        <SelectItem key={p.id} value={p.name}>
-                          {p.name}{p.specification ? ` · ${p.specification}` : ""} ({p.quantity} {p.unit})
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <ProductPicker testid={`item-product-${i}`} value={it.product} products={products} onSelect={(name) => selectProduct(i, name)} onCreate={(name) => handleCreate(i, name)} />
                 </div>
               ) : (
                 <Input

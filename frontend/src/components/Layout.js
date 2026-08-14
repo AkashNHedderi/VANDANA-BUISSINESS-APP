@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, ShoppingCart, Receipt, Boxes, Users, Truck,
-  Wallet, FileBarChart, Sparkles, Settings as Cog, LogOut, Menu, X,
+  Wallet, FileBarChart, Sparkles, Settings as Cog, LogOut, Menu, X, TrendingDown,
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
@@ -14,6 +14,7 @@ const NAV = [
   { to: "/customers", label: "Customers", icon: Users },
   { to: "/suppliers", label: "Suppliers", icon: Truck },
   { to: "/payments", label: "Payments", icon: Wallet },
+  { to: "/expenses", label: "Expenses", icon: TrendingDown },
   { to: "/reports", label: "Reports", icon: FileBarChart },
   { to: "/analytics", label: "Ask My Business", icon: Sparkles },
   { to: "/settings", label: "Settings", icon: Cog },

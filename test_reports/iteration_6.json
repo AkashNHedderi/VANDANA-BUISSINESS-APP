@@ -1,0 +1,22 @@
+{
+  "summary": "Frontend-only retest of HIGH bug fixes for duplicate customer & product handling in VANDANA app. All 4 requested flows PASSED. Duplicate 'Ravi Traders' customer -> error toast \"Customer 'Ravi Traders' already exists\" shown, dialog stayed open, NO dev runtime-error overlay. Duplicate 'GI Pipe' product -> error toast \"Product 'GI Pipe' already exists in inventory\" shown, dialog stayed open, NO overlay. Unique customer (TEST_Cust_*) and unique product (TEST_Prod_*) creations succeeded with success toasts and new rows visible in customers-table / inventory-table. Dashboard kpi-net-profit and kpi-expenses both render. Bug fix verified.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [],
+  "action_items": ["Consider cleaning up TEST_Cust_* and TEST_Prod_* seed rows created during this test."],
+  "critical_code_review_comments": [
+    "Dialogs are missing aria-describedby / Description for accessibility (Radix warning in console) — non-blocking but should be fixed."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "not tested (frontend-only)", "frontend": "100% (4/4 flows)"},
+  "test_credentials": "PIN 112233",
+  "seed_data_creation": "Created one customer TEST_Cust_1786721459 and one product TEST_Prod_1786721468 for the unique-name sanity checks; both persisted in DB.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Duplicate 409 handling now works cleanly on both CustomerForm.save and ProductDialog.save via try/catch + toast.error(errMsg(e)). If regressing later, verify dialog stays open on 409 and toast content matches backend detail string. Note: 'Save as PDF' regression was NOT re-tested this iteration (per request keep run lightweight) — it passed in iteration_5 and no related files were changed.",
+  "rca of the issue": "Previous iteration: create/update calls in CustomerForm and ProductDialog were awaited without try/catch, so backend 409 duplicate responses became unhandled promise rejections that surfaced as the CRA dev 'Uncaught runtime errors' overlay. Fix wrapped save() bodies in try/catch and called toast.error(errMsg(e)) on failure without invoking markSaved / onSaved, keeping the dialog open. Verified end-to-end in this run."
+}
