@@ -13,7 +13,7 @@ import {
 import { Plus, FileText, Loader2, CheckCircle2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
+function PurchaseDialog({ open, onClose, onSaved, initial, suppliers, products, onCreateProduct }) {
   const [form, setForm] = useState({ supplier_id: "", supplier_name: "", invoice_number: "", date: fmtDate(new Date().toISOString()) });
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
@@ -82,7 +82,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="font-mono" />
             </div>
           </div>
-          <LineItemsEditor items={items} setItems={setItems} mode="purchase" />
+          <LineItemsEditor items={items} setItems={setItems} mode="purchase" products={products} onCreateProduct={onCreateProduct} />
           <div className="text-right font-mono text-xl text-primary" data-testid="purchase-total">TOTAL: {fmtMoney(total)}</div>
         </div>
         <DialogFooter>
@@ -100,6 +100,7 @@ function PurchaseDialog({ open, onClose, onSaved, initial, suppliers }) {
 export default function Purchases() {
   const [purchases, setPurchases] = useState([]);
   const [suppliers, setSuppliers] = useState([]);
+  const [products, setProducts] = useState([]);
   const [dlgOpen, setDlgOpen] = useState(false);
   const [initial, setInitial] = useState(null);
   const [scanning, setScanning] = useState(false);
@@ -109,8 +110,18 @@ export default function Purchases() {
   const load = () => {
     api.get("/purchases").then((r) => setPurchases(r.data));
     api.get("/suppliers").then((r) => setSuppliers(r.data));
+    api.get("/products").then((r) => setProducts(r.data));
   };
   useEffect(() => { load(); }, []);
+
+  const createProduct = async (name) => {
+    try {
+      const r = await api.post("/products", { name, unit: "PCS" });
+      const list = await api.get("/products"); setProducts(list.data);
+      markSaved(); toast.success(`"${name}" added to inventory`);
+      return r.data;
+    } catch (err) { toast.error(errMsg(err)); return null; }
+  };
 
   useEffect(() => {
     if (params.get("new") === "1") { setInitial(null); setDlgOpen(true); setParams({}); }
@@ -187,7 +198,7 @@ export default function Purchases() {
         </table>
       </div>
 
-      <PurchaseDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} suppliers={suppliers} />
+      <PurchaseDialog open={dlgOpen} onClose={() => setDlgOpen(false)} onSaved={load} initial={initial} suppliers={suppliers} products={products} onCreateProduct={createProduct} />
     </div>
   );
 }

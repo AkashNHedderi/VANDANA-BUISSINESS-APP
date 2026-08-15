@@ -77,13 +77,53 @@ def init_storage(force: bool = False):
     return storage_key
 
 
+USE_OPENAI_SDK = bool(os.environ.get("OPENAI_API_KEY"))
+USE_R2 = bool(os.environ.get("R2_BUCKET"))
+
+
 def put_object(path: str, data: bytes, content_type: str) -> dict:
+    if USE_R2:
+        return r2_put(path, data, content_type)
     key = init_storage()
     resp = requests.put(f"{STORAGE_URL}/objects/{path}",
                         headers={"X-Storage-Key": key, "Content-Type": content_type},
                         data=data, timeout=120)
     resp.raise_for_status()
     return resp.json()
+
+
+def r2_put(path: str, data: bytes, content_type: str) -> dict:
+    import boto3
+    s3 = boto3.client("s3", endpoint_url=os.environ["R2_ENDPOINT"],
+                      aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
+                      aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
+                      region_name=os.environ.get("R2_REGION", "auto"))
+    s3.put_object(Bucket=os.environ["R2_BUCKET"], Key=path, Body=data, ContentType=content_type)
+    return {"path": path}
+
+
+def _openai_client():
+    from openai import OpenAI
+    return OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
+
+
+def openai_vision_json(system_prompt: str, images_b64: list) -> str:
+    client = _openai_client()
+    content = [{"type": "text", "text": "Extract the data as strict JSON only."}]
+    for b in images_b64:
+        content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b}"}})
+    r = client.chat.completions.create(model=LLM_MODEL,
+                                       messages=[{"role": "system", "content": system_prompt},
+                                                 {"role": "user", "content": content}])
+    return r.choices[0].message.content
+
+
+def openai_text(system_prompt: str, prompt: str) -> str:
+    client = _openai_client()
+    r = client.chat.completions.create(model=LLM_MODEL,
+                                       messages=[{"role": "system", "content": system_prompt},
+                                                 {"role": "user", "content": prompt}])
+    return r.choices[0].message.content
 
 
 # ---------------------------------------------------------------------------
@@ -1015,12 +1055,15 @@ Return ONLY this JSON:
 
 
 async def run_extraction(system_prompt: str, images_b64: List[str]) -> dict:
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"extract-{new_id()}",
-                   system_message=system_prompt).with_model("openai", LLM_MODEL)
-    contents = [ImageContent(image_base64=b) for b in images_b64]
-    resp = await chat.send_message(UserMessage(text="Extract the data as strict JSON only.",
-                                               file_contents=contents))
-    text = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
+    if USE_OPENAI_SDK:
+        text = openai_vision_json(system_prompt, images_b64)
+    else:
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"extract-{new_id()}",
+                       system_message=system_prompt).with_model("openai", LLM_MODEL)
+        contents = [ImageContent(image_base64=b) for b in images_b64]
+        resp = await chat.send_message(UserMessage(text="Extract the data as strict JSON only.",
+                                                   file_contents=contents))
+        text = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
     try:
         return parse_llm_json(text)
     except Exception as e:
@@ -1190,9 +1233,12 @@ CURRENT QUESTION: {body.question}
 
 Answer using only the DATA above."""
 
-    chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", LLM_MODEL)
-    resp = await chat.send_message(UserMessage(text=prompt))
-    answer = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
+    if USE_OPENAI_SDK:
+        answer = openai_text(system, prompt)
+    else:
+        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", LLM_MODEL)
+        resp = await chat.send_message(UserMessage(text=prompt))
+        answer = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
 
     await db.analytics_chats.insert_one({"id": new_id(), "session_id": session_id,
                                          "question": body.question, "answer": answer, "created_at": now_iso()})
