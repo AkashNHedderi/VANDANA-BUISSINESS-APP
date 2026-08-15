@@ -16,8 +16,7 @@ OpenAI SDK + Cloudflare R2 when they **are** set.
 
 ## 1. Environment variables (exact)
 Backend: `MONGO_URL`, `DB_NAME`, `CORS_ORIGINS`, `JWT_SECRET`, `ADMIN_EMAIL`, `ADMIN_PIN`,
-`OPENAI_API_KEY`, `LLM_MODEL` (=`gpt-5.4`), `OPENAI_BASE_URL` (optional),
-`R2_BUCKET`, `R2_ENDPOINT`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_REGION` (=`auto`), `APP_NAME`.
+`OPENAI_API_KEY`, `LLM_MODEL` (=`gpt-5.4`), `OPENAI_BASE_URL` (optional), `APP_NAME`. (No document storage — uploads are processed in memory and never persisted.)
 Frontend: `REACT_APP_BACKEND_URL`.
 (`EMERGENT_LLM_KEY` is NOT required once `OPENAI_API_KEY` is set.)
 
@@ -39,11 +38,8 @@ cd backend && uvicorn server:app --host 0.0.0.0 --port $PORT
   Publish dir `build`, add `REACT_APP_BACKEND_URL` = backend URL, add SPA rewrite `/* -> /index.html`.
 - Or commit `render.yaml` and use Render Blueprints. (Free tier sleeps when idle.)
 
-## 5. Cloudflare R2 settings
-- Create bucket (e.g. `vandana-scans`). R2 → Manage API Tokens → create Access Key.
-- `R2_ENDPOINT = https://<ACCOUNT_ID>.r2.cloudflarestorage.com`, `R2_REGION=auto`,
-  set `R2_ACCESS_KEY_ID` / `R2_SECRET_ACCESS_KEY` / `R2_BUCKET`.
-- Used only to archive scanned bill images and purchase scans; OCR still works if unset.
+## 5. Document storage
+- None. Uploaded photos/PDFs are processed in memory only and discarded after extraction — nothing is persisted (no R2/S3, no files on disk, no binaries in MongoDB).
 
 ## 6. OpenAI configuration
 - Create key at platform.openai.com → set `OPENAI_API_KEY`, `LLM_MODEL=gpt-5.4`.

@@ -50,9 +50,6 @@ ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "owner@example.com")
 ADMIN_PIN = os.environ.get("ADMIN_PIN", "112233")
 APP_NAME = os.environ.get("APP_NAME", "steelbiz")
 
-STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
-STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("steelbiz")
 
@@ -62,44 +59,10 @@ api = APIRouter(prefix="/api")
 UNITS = ["KG", "MT", "PCS", "FEET", "SQ FT", "COIL"]
 
 # ---------------------------------------------------------------------------
-# Object storage
+# AI provider (OpenAI SDK). NO document storage: uploaded photos/PDFs are
+# processed in memory only and are never persisted anywhere.
 # ---------------------------------------------------------------------------
-storage_key = None
-
-
-def init_storage(force: bool = False):
-    global storage_key
-    if storage_key and not force:
-        return storage_key
-    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_LLM_KEY}, timeout=30)
-    resp.raise_for_status()
-    storage_key = resp.json()["storage_key"]
-    return storage_key
-
-
 USE_OPENAI_SDK = bool(os.environ.get("OPENAI_API_KEY"))
-USE_R2 = bool(os.environ.get("R2_BUCKET"))
-
-
-def put_object(path: str, data: bytes, content_type: str) -> dict:
-    if USE_R2:
-        return r2_put(path, data, content_type)
-    key = init_storage()
-    resp = requests.put(f"{STORAGE_URL}/objects/{path}",
-                        headers={"X-Storage-Key": key, "Content-Type": content_type},
-                        data=data, timeout=120)
-    resp.raise_for_status()
-    return resp.json()
-
-
-def r2_put(path: str, data: bytes, content_type: str) -> dict:
-    import boto3
-    s3 = boto3.client("s3", endpoint_url=os.environ["R2_ENDPOINT"],
-                      aws_access_key_id=os.environ["R2_ACCESS_KEY_ID"],
-                      aws_secret_access_key=os.environ["R2_SECRET_ACCESS_KEY"],
-                      region_name=os.environ.get("R2_REGION", "auto"))
-    s3.put_object(Bucket=os.environ["R2_BUCKET"], Key=path, Body=data, ContentType=content_type)
-    return {"path": path}
 
 
 def _openai_client():
@@ -1082,12 +1045,6 @@ async def scan_sale(file: UploadFile = File(...), user=Depends(get_current_user)
         logger.warning(f"sale image decode failed: {e}")
         raise HTTPException(status_code=422, detail="Could not read that image. Please retake a clear, well-lit photo (JPG/PNG/HEIC).")
     result = await run_extraction(SALE_EXTRACT_PROMPT, [b64])
-    try:
-        path = f"{APP_NAME}/scans/sales/{new_id()}.png"
-        put_object(path, base64.b64decode(b64), "image/png")
-        result["scan_path"] = path
-    except Exception as e:
-        logger.warning(f"scan upload failed: {e}")
     return result
 
 
@@ -1433,11 +1390,6 @@ async def startup():
     if not owner:
         await db.owner.insert_one({"email": ADMIN_EMAIL, "pin_hash": hash_pin(ADMIN_PIN), "created_at": now_iso()})
         logger.info("Owner seeded")
-    try:
-        init_storage()
-        logger.info("Storage initialized")
-    except Exception as ex:
-        logger.warning(f"Storage init failed: {ex}")
 
 
 @app.on_event("shutdown")
