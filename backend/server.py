@@ -33,7 +33,7 @@ from reportlab.lib.units import mm
 from reportlab.lib import colors
 from reportlab.pdfgen import canvas
 
-from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+
 
 # ---------------------------------------------------------------------------
 # Setup
@@ -42,7 +42,7 @@ mongo_url = os.environ["MONGO_URL"]
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
-EMERGENT_LLM_KEY = os.environ.get("EMERGENT_LLM_KEY")
+
 LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-5.4")
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
@@ -1021,12 +1021,7 @@ async def run_extraction(system_prompt: str, images_b64: List[str]) -> dict:
     if USE_OPENAI_SDK:
         text = openai_vision_json(system_prompt, images_b64)
     else:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=f"extract-{new_id()}",
-                       system_message=system_prompt).with_model("openai", LLM_MODEL)
-        contents = [ImageContent(image_base64=b) for b in images_b64]
-        resp = await chat.send_message(UserMessage(text="Extract the data as strict JSON only.",
-                                                   file_contents=contents))
-        text = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
+              text = openai_vision_json(system_prompt, images_b64)
     try:
         return parse_llm_json(text)
     except Exception as e:
@@ -1193,9 +1188,7 @@ Answer using only the DATA above."""
     if USE_OPENAI_SDK:
         answer = openai_text(system, prompt)
     else:
-        chat = LlmChat(api_key=EMERGENT_LLM_KEY, session_id=session_id, system_message=system).with_model("openai", LLM_MODEL)
-        resp = await chat.send_message(UserMessage(text=prompt))
-        answer = resp if isinstance(resp, str) else getattr(resp, "content", str(resp))
+        answer = openai_text(system, prompt)
 
     await db.analytics_chats.insert_one({"id": new_id(), "session_id": session_id,
                                          "question": body.question, "answer": answer, "created_at": now_iso()})
