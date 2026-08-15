@@ -23,8 +23,8 @@ function ProductPicker({ value, products, onSelect, onCreate, testid }) {
   const ref = useRef(null);
   useEffect(() => {
     const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
-    document.addEventListener("mousedown", h);
-    return () => document.removeEventListener("mousedown", h);
+    document.addEventListener("pointerdown", h);
+    return () => document.removeEventListener("pointerdown", h);
   }, []);
   const query = q.trim().toLowerCase();
   const filtered = products.filter((p) => `${p.name} ${p.specification || ""}`.toLowerCase().includes(query));
@@ -47,7 +47,7 @@ function ProductPicker({ value, products, onSelect, onCreate, testid }) {
             </button>
           )}
           {filtered.map((p) => (
-            <button type="button" key={p.id} onClick={() => { onSelect(p.name); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-accent">
+            <button type="button" key={p.id} onClick={() => { onSelect(p); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-accent">
               {p.name}{p.specification ? ` · ${p.specification}` : ""} <span className="text-muted-foreground">({p.quantity} {p.unit})</span>
             </button>
           ))}
@@ -64,11 +64,12 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
     next[i].total = lineTotal(next[i]);
     setItems(next);
   };
-  const selectProduct = (i, name) => {
-    const p = products.find((x) => x.name === name);
+  const selectProduct = (i, prod) => {
+    const p = typeof prod === "string" ? products.find((x) => x.name === prod) : prod;
+    const name = typeof prod === "string" ? prod : prod.name;
     const next = items.map((it, idx) =>
       idx === i
-        ? { ...it, product: name, specification: p?.specification || it.specification, thickness: p?.thickness || it.thickness, unit: p?.unit || it.unit }
+        ? { ...it, product: name, specification: (p && p.specification != null) ? p.specification : it.specification, thickness: p?.thickness || it.thickness, unit: p?.unit || it.unit }
         : it
     );
     next[i].total = lineTotal(next[i]);
@@ -106,7 +107,7 @@ export default function LineItemsEditor({ items, setItems, mode = "sale", produc
             <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
               {mode === "sale" ? (
                 <div className="col-span-2 md:col-span-2">
-                  <ProductPicker testid={`item-product-${i}`} value={it.product} products={products} onSelect={(name) => selectProduct(i, name)} onCreate={(name) => handleCreate(i, name)} />
+                  <ProductPicker testid={`item-product-${i}`} value={it.product} products={products} onSelect={(prod) => selectProduct(i, prod)} onCreate={(name) => handleCreate(i, name)} />
                 </div>
               ) : (
                 <Input

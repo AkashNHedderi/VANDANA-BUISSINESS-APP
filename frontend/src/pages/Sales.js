@@ -17,7 +17,7 @@ import { Plus, Camera, Download, Loader2, CheckCircle2, FileText, Trash2 } from 
 import { toast } from "sonner";
 
 function SaleDialog({ open, onClose, onSaved, initial, customers, products, onCreateProduct }) {
-  const [form, setForm] = useState({ customer_id: "", customer_name: "", date: fmtDate(new Date().toISOString()) });
+  const [form, setForm] = useState({ customer_id: "", customer_name: "", date: fmtDate(new Date().toISOString()), notes: "" });
   const [items, setItems] = useState([emptyItem()]);
   const [saving, setSaving] = useState(false);
   const isEdit = !!initial?.id;
@@ -29,6 +29,7 @@ function SaleDialog({ open, onClose, onSaved, initial, customers, products, onCr
         customer_id: base.customer_id || "",
         customer_name: base.customer_name || "",
         date: base.date || fmtDate(new Date().toISOString()),
+        notes: base.notes || "",
       });
       setItems((base.items && base.items.length ? base.items : [emptyItem()]).map((it) => ({ ...emptyItem(), ...it, total: lineTotal({ ...emptyItem(), ...it }) })));
     }
@@ -82,6 +83,10 @@ function SaleDialog({ open, onClose, onSaved, initial, customers, products, onCr
               <Input type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} className="font-mono" data-testid="sale-date" />
             </div>
           </div>
+          <div>
+            <Label>Description / Note (optional)</Label>
+            <textarea data-testid="sale-notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} placeholder="Add a note for this sale…" className="flex min-h-[64px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring" />
+          </div>
           <LineItemsEditor items={items} setItems={setItems} mode="sale" products={products} onCreateProduct={onCreateProduct} />
           <div className="text-right font-mono text-xl text-primary" data-testid="sale-total">TOTAL: {fmtMoney(total)}</div>
         </div>
@@ -104,6 +109,7 @@ export default function Sales() {
   const [dlgOpen, setDlgOpen] = useState(false);
   const [initial, setInitial] = useState(null);
   const [scanning, setScanning] = useState(false);
+  const [q, setQ] = useState("");
   const fileRef = useRef(null);
   const [params, setParams] = useSearchParams();
 
@@ -166,10 +172,13 @@ export default function Sales() {
     } catch (e) { toast.error(errMsg(e)); }
   };
 
+  const shownSales = sales.filter((s) => `${s.invoice_number || ""} ${s.customer_name || ""} ${(s.items || []).map((it) => it.product).join(" ")}`.toLowerCase().includes(q.toLowerCase()));
+
   return (
     <div className="rise">
       <input ref={fileRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={onScan} data-testid="scan-bill-input" />
       <PageHeader title="SALES" subtitle="Manual entry or scan a handwritten bill">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search invoice / customer / product…" className="w-48 sm:w-64" data-testid="sales-search" />
         <Button variant="outline" onClick={() => fileRef.current?.click()} disabled={scanning} data-testid="scan-bill-btn" className="border-primary text-primary">
           {scanning ? <Loader2 size={16} className="animate-spin mr-1" /> : <Camera size={16} className="mr-1" />}
           SCAN BILL
@@ -192,8 +201,8 @@ export default function Sales() {
             </tr>
           </thead>
           <tbody className="divide-y divide-border" data-testid="sales-table">
-            {sales.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No sales yet.</td></tr>}
-            {sales.map((s) => (
+            {shownSales.length === 0 && <tr><td colSpan={6} className="p-6 text-center text-muted-foreground">No sales yet.</td></tr>}
+            {shownSales.map((s) => (
               <tr key={s.id} className="hover:bg-accent/50 cursor-pointer" onClick={() => { setInitial(s); setDlgOpen(true); }} data-testid={`sale-row-${s.id}`}>
                 <td className="p-3 font-mono">{fmtDate(s.date)}</td>
                 <td className="p-3 font-mono">{s.invoice_number}</td>
