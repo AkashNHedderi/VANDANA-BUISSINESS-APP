@@ -28,7 +28,7 @@ filelock==3.32.2
 flake8==7.3.0
 frozenlist==1.8.0
 fsspec==2026.7.0
-
+google-genai
 
 
 
