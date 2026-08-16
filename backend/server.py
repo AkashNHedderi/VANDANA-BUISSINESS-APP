@@ -43,7 +43,7 @@ client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ["DB_NAME"]]
 
 
-LLM_MODEL = os.environ.get("LLM_MODEL", "gpt-5.4")
+
 JWT_SECRET = os.environ["JWT_SECRET"]
 JWT_ALGORITHM = "HS256"
 ADMIN_EMAIL = os.environ.get("ADMIN_EMAIL", "owner@example.com")
@@ -62,32 +62,78 @@ UNITS = ["KG", "MT", "PCS", "FEET", "SQ FT", "COIL"]
 # AI provider (OpenAI SDK). NO document storage: uploaded photos/PDFs are
 # processed in memory only and are never persisted anywhere.
 # ---------------------------------------------------------------------------
-USE_OPENAI_SDK = bool(os.environ.get("OPENAI_API_KEY"))
+# ---------------------------------------------------------------------------
+# AI provider - Google Gemini
+# ---------------------------------------------------------------------------
+import base64
+from google import genai
+from google.genai import types
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+LLM_MODEL = os.environ.get("LLM_MODEL", "gemini-2.5-flash")
 
 
-def _openai_client():
-    from openai import OpenAI
-    return OpenAI(api_key=os.environ["OPENAI_API_KEY"], base_url=os.environ.get("OPENAI_BASE_URL") or None)
+def _gemini_client():
+    if not GEMINI_API_KEY:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    return genai.Client(api_key=GEMINI_API_KEY)
 
 
-def openai_vision_json(system_prompt: str, images_b64: list) -> str:
-    client = _openai_client()
-    content = [{"type": "text", "text": "Extract the data as strict JSON only."}]
-    for b in images_b64:
-        content.append({"type": "image_url", "image_url": {"url": f"data:image/png;base64,{b}"}})
-    r = client.chat.completions.create(model=LLM_MODEL,
-                                       messages=[{"role": "system", "content": system_prompt},
-                                                 {"role": "user", "content": content}])
-    return r.choices[0].message.content
+def gemini_vision_json(system_prompt: str, images_b64: list) -> str:
+    """
+    Process document/bill images directly in memory.
+    Images are not saved to disk or uploaded to permanent storage.
+    """
+    client = _gemini_client()
+
+    contents = [
+        "Extract the data from the provided document images. "
+        "Return STRICT JSON only. Do not add markdown or explanations."
+    ]
+
+    for image_b64 in images_b64:
+        # Remove data URL prefix if one is present
+        if "," in image_b64 and image_b64.startswith("data:"):
+            image_b64 = image_b64.split(",", 1)[1]
+
+        image_bytes = base64.b64decode(image_b64)
+
+        contents.append(
+            types.Part.from_bytes(
+                data=image_bytes,
+                mime_type="image/png"
+            )
+        )
+
+    response = client.models.generate_content(
+        model=LLM_MODEL,
+        contents=contents,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0,
+            response_mime_type="application/json"
+        )
+    )
+
+    return response.text
 
 
-def openai_text(system_prompt: str, prompt: str) -> str:
-    client = _openai_client()
-    r = client.chat.completions.create(model=LLM_MODEL,
-                                       messages=[{"role": "system", "content": system_prompt},
-                                                 {"role": "user", "content": prompt}])
-    return r.choices[0].message.content
+def gemini_text(system_prompt: str, prompt: str) -> str:
+    """
+    General business/analytics questions using Gemini.
+    """
+    client = _gemini_client()
 
+    response = client.models.generate_content(
+        model=LLM_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=system_prompt,
+            temperature=0.2
+        )
+    )
+
+    return response.text
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1018,10 +1064,17 @@ Return ONLY this JSON:
 
 
 async def run_extraction(system_prompt: str, images_b64: List[str]) -> dict:
-    if USE_OPENAI_SDK:
-        text = openai_vision_json(system_prompt, images_b64)
-    else:
-              text = openai_vision_json(system_prompt, images_b64)
+    text = gemini_vision_json(system_prompt, images_b64)
+
+    try:
+        return parse_llm_json(text)
+    except Exception as e:
+        logger.error(f"JSON parse failed: {e} :: {text[:500]}")
+        return {
+            "error": "Could not read document clearly",
+            "raw": text[:1000],
+            "needs_review": ["all"]
+        }
     try:
         return parse_llm_json(text)
     except Exception as e:
@@ -1185,10 +1238,7 @@ CURRENT QUESTION: {body.question}
 
 Answer using only the DATA above."""
 
-    if USE_OPENAI_SDK:
-        answer = openai_text(system, prompt)
-    else:
-        answer = openai_text(system, prompt)
+    answer = gemini_text(system, prompt)
 
     await db.analytics_chats.insert_one({"id": new_id(), "session_id": session_id,
                                          "question": body.question, "answer": answer, "created_at": now_iso()})
