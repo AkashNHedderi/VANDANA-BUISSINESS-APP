@@ -21,44 +21,113 @@ function ProductPicker({ value, products, onSelect, onCreate, testid }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const ref = useRef(null);
+
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) {
+        setOpen(false);
+      }
+    };
+
     document.addEventListener("pointerdown", h);
     return () => document.removeEventListener("pointerdown", h);
   }, []);
+
   const query = q.trim().toLowerCase();
-  const filtered = products.filter((p) => `${p.name} ${p.specification || ""}`.toLowerCase().includes(query));
-  const exact = products.some((p) => p.name.toLowerCase() === query);
+
+  const filtered = products.filter((p) =>
+    `${p.name} ${p.specification || ""}`
+      .toLowerCase()
+      .includes(query)
+  );
+
+  const exact = products.some(
+    (p) => p.name.toLowerCase() === query
+  );
+
+  const handleSelect = (product) => {
+    onSelect(product);
+    setQ("");
+    setOpen(false);
+  };
+
+  const handleCreate = () => {
+    const name = q.trim();
+    if (!name) return;
+
+    onCreate(name);
+    setQ("");
+    setOpen(false);
+  };
+
   return (
     <div className="relative" ref={ref}>
       <input
         data-testid={testid}
         value={open ? q : (value || "")}
-        onFocus={() => { setOpen(true); setQ(""); }}
-        onChange={(e) => { setQ(e.target.value); setOpen(true); }}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
+        onFocus={() => {
+          setOpen(true);
+          setQ(value || "");
+        }}
+        onChange={(e) => {
+          setQ(e.target.value);
+          setOpen(true);
+        }}
         placeholder="Search or add product…"
         className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
       />
+
       {open && (
         <div className="absolute z-50 mt-1 w-full max-h-60 overflow-y-auto rounded-sm border border-border bg-popover shadow-xl">
+          
           {query && !exact && (
-            <button type="button" data-testid={`${testid}-new`} onClick={() => { onCreate(q.trim()); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-accent">
+            <button
+              type="button"
+              data-testid={`${testid}-new`}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={handleCreate}
+              className="w-full text-left px-3 py-2 text-sm text-primary hover:bg-accent"
+            >
               + Create "{q.trim()}"
             </button>
           )}
+
           {filtered.map((p) => (
-            <button type="button" key={p.id} onClick={() => { onSelect(p); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm hover:bg-accent">
-              {p.name}{p.specification ? ` · ${p.specification}` : ""} <span className="text-muted-foreground">({p.quantity} {p.unit})</span>
+            <button
+              type="button"
+              key={p.id}
+              onMouseDown={(e) => {
+                e.preventDefault();
+              }}
+              onClick={() => handleSelect(p)}
+              className="w-full text-left px-3 py-2 text-sm hover:bg-accent"
+            >
+              {p.name}
+              {p.specification ? ` · ${p.specification}` : ""}{" "}
+              <span className="text-muted-foreground">
+                ({p.quantity} {p.unit})
+              </span>
             </button>
           ))}
-          {filtered.length === 0 && !query && <div className="px-3 py-2 text-xs text-muted-foreground">Type to search products…</div>}
+
+          {filtered.length === 0 && !query && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              Type to search products…
+            </div>
+          )}
+
+          {filtered.length === 0 && query && exact === false && (
+            <div className="px-3 py-2 text-xs text-muted-foreground">
+              No matching product.
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
-
 export default function LineItemsEditor({ items, setItems, mode = "sale", products = [], onCreateProduct }) {
   const update = (i, key, val) => {
     const next = items.map((it, idx) => (idx === i ? { ...it, [key]: val } : it));
